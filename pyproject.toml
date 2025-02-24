@@ -1,0 +1,8 @@
+[tool.ruff]
+
+lint.select = [
+    "I",  # sort imports
+    "E",  # pycodestyle
+    "F",  # pyflakes
+    "B",  # bugbear
+]

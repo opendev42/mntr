@@ -1,0 +1,107 @@
+# This is an example of using yaml to configure publishers that can be run by
+# the interval publisher (`mntr.publisher.interval_publisher`)
+
+# Each entry in the dictionary is keyed by the channel name .
+# The values should contain
+# - class: the fully qualified path to the class that generates the data.
+# - params: dictionary of keyword arguments to parameterise the publisher.
+#
+# See `examples.example_publishers` for more.
+
+lipsum: &LIPSUM
+  class: examples.example_publishers.PlaintextLoremIpsumPublisher
+  params:
+    num_sentences: 25
+
+lipsum_html: &LIPSUM_HTML
+  class: examples.example_publishers.HtmlLoremIpsumPublisher
+  params:
+    num_sentences: 25
+
+error:
+  class: examples.example_publishers.ErrorPublisher
+
+table: &TABLE
+  class: examples.example_publishers.TablePublisher
+  params:
+    num_columns: 5
+    min_rows: 5
+    max_rows: 250
+
+pandas_table:
+  class: examples.example_publishers.PandasTablePublisher
+  params:
+    num_rows: 250
+
+linechart: &LINE
+  class: examples.example_publishers.LineChartPublisher
+  params:
+    interval: 1.9
+    num_labels: 4
+    num_datasets: 3
+
+scatterchart:
+  class: examples.example_publishers.ScatterChartPublisher
+  params:
+    interval: 2.2
+    num_lines: 4
+    min_observations: 10
+    max_observations: 30
+
+radarchart:
+  class: examples.example_publishers.RadarChartPublisher
+  params:
+    interval: 1.7
+    num_labels: 4
+    num_datasets: 3
+
+barchart:
+  class: examples.example_publishers.BarChartPublisher
+  params:
+    interval: 1.4
+    num_labels: 8
+    num_datasets: 3
+
+piechart:
+  class: examples.example_publishers.PieChartPublisher
+  params:
+    interval: 2.6
+    num_labels: 5
+    num_datasets: 1
+
+image:
+  class: examples.example_publishers.ImagePublisher
+  params:
+    interval: 2.6
+    num_labels: 5
+    num_datasets: 1
+
+alert_error: &ALERT_ERROR
+  class: examples.example_publishers.AlertPublisher
+  params:
+    alert_severity: error
+
+alert_warning:
+  class: examples.example_publishers.AlertPublisher
+  params:
+    alert_severity: warning
+
+alert_info:
+  class: examples.example_publishers.AlertPublisher
+  params:
+    alert_severity: info
+
+alert_success:
+  class: examples.example_publishers.AlertPublisher
+  params:
+    alert_severity: success
+
+multi:
+  class: examples.example_publishers.MultiPagePublisher
+  params:
+    monitors:
+      lipsum: *LIPSUM
+      lipsum_html: *LIPSUM_HTML
+      table: *TABLE
+      alert: *ALERT_ERROR
+      line: *LINE

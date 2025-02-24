@@ -1,0 +1,27 @@
+* {
+  outline: none;
+  user-select: none;
+}
+
+input {
+  cursor: default;
+}
+
+input:hover {
+  cursor: pointer;
+}
+
+select {
+  cursor: default;
+}
+
+.panel {
+  border: solid 1px #dddddd;
+  box-sizing: border-box;
+  padding: 0;
+}
+
+.react-grid-item.react-grid-placeholder {
+  background-color: #021b5c;
+  opacity: 0.1;
+}

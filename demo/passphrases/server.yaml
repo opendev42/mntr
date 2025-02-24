@@ -1,0 +1,3 @@
+# client passphrases `CLIENT_NAME:PASSPHRASE`
+client0: "client0"
+client1: "client1"

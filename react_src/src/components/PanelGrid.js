@@ -7,6 +7,34 @@ import { updatePanels } from "../state/panelSlice";
 const ReactGridLayout = WidthProvider(RGL);
 
 const PanelGrid = () => {
+
+  const isMobile = useSelector((state) => state.mobile.isMobile);
+  return isMobile === 1 ? <MobilePanelGrid /> : <DesktopPanelGrid />;
+}
+
+const MobilePanelGrid = () => {
+  const panels = useSelector(
+    (state) => state.panel.windows[state.panel.currentWindowId].panels,
+  );
+  const credentials = useSelector((state) => state.credentials.credentials);
+
+  const key = Object.keys(panels)[0];
+  const panel = panels[key];
+
+  return (
+    <>
+        <div key={key} className="panel" data-grid={panel.dataGrid}>
+          <Panel
+            panelId={key}
+            credentials={credentials}
+            isMobile
+          />
+        </div>
+    </>
+  );
+};
+
+const DesktopPanelGrid = () => {
   const dispatch = useDispatch();
   const panels = useSelector(
     (state) => state.panel.windows[state.panel.currentWindowId].panels,

@@ -64,9 +64,10 @@ export const panelSlice = createSlice({
       state.windows[state.currentWindowId].panels = panels;
     },
     deletePanel: (state, action) => {
-      delete state.windows[state.currentWindowId].panels[
-        action.payload.panelId
-      ];
+      const panels = state.windows[state.currentWindowId].panels;
+      if(Object.entries(panels).length > 1) {
+        delete panels[action.payload.panelId];
+      }
     },
     updatePanels: (state, action) => {
       state.windows[state.currentWindowId].panels = action.payload.panels;

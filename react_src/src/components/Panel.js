@@ -12,7 +12,7 @@ import { deletePanel, updatePanelState } from "../state/panelSlice";
 
 import { subscribe, listenChannels } from "../util/connection";
 
-const Panel = ({ panelId, credentials }) => {
+const Panel = ({ panelId, credentials, isMobile }) => {
   const dispatch = useDispatch();
   const [channelData, setChannelData] = React.useState(null);
 
@@ -68,15 +68,17 @@ const Panel = ({ panelId, credentials }) => {
           }}
           timestamp={channelData !== null ? channelData.timestamp : null}
         />
-        <Tooltip title="Close panel">
-          <IconButton
-            onClick={() => {
-              dispatch(deletePanel({ panelId }));
-            }}
-          >
-            <CloseIcon sx={{ fontSize: "0.7rem" }} />
-          </IconButton>
-        </Tooltip>
+        {!isMobile &&
+          <Tooltip title="Close panel">
+            <IconButton
+              onClick={() => {
+                dispatch(deletePanel({ panelId }));
+              }}
+            >
+              <CloseIcon sx={{ fontSize: "0.7rem" }} />
+            </IconButton>
+          </Tooltip>
+        }
       </Box>
       {channel !== "" && channelData === null && (
         <LinearProgress sx={{ mt: 1, mx: 0 }} />

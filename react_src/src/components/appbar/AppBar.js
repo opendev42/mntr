@@ -8,7 +8,10 @@ import AddPanel from "./AddPanel";
 import Windows from "./Windows";
 import SideMenu from "./SideMenu";
 
+import { useSelector } from "react-redux";
+
 const AppBar = () => {
+  const isMobile = useSelector((state) => state.mobile.isMobile);
   const [time, setTime] = React.useState(Date(Date.now()));
 
   React.useEffect(() => {
@@ -58,7 +61,7 @@ const AppBar = () => {
           }}
         >
           <Windows />
-          <AddPanel />
+          {isMobile === 0 && <AddPanel />}
           <SideMenu />
         </Box>
       </Toolbar>

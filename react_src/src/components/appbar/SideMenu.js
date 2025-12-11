@@ -15,14 +15,19 @@ import Menu from "@mui/material/Menu";
 import MenuIcon from "@mui/icons-material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Typography from "@mui/material/Typography";
+import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
+import ComputerIcon from '@mui/icons-material/Computer';
 
 import AppBarButton from "./AppBarButton";
 
 import { updateWindows } from "../../state/panelSlice";
 import { removeCredentials } from "../../state/credentialsSlice";
+import { setMobile, removeMobile } from "../../state/mobileSlice";
 
 const SideMenu = () => {
   const layoutState = useSelector((state) => state.panel);
+  const isMobile = useSelector((state) => state.mobile.isMobile);
+
   const uploadFile = React.useRef(null);
   const dispatch = useDispatch();
 
@@ -78,6 +83,13 @@ const SideMenu = () => {
           onClick={() => {
             uploadFile.current.click();
           }}
+          closeMenu={() => setShowMenu(false)}
+        />
+
+        <SideMenuItem
+          title={isMobile ? "Desktop Mode" : "Mobile Mode"}
+          icon={isMobile ? <ComputerIcon /> : <PhoneAndroidIcon />}
+          onClick={() => dispatch((isMobile ? removeMobile : setMobile)())}
           closeMenu={() => setShowMenu(false)}
         />
 

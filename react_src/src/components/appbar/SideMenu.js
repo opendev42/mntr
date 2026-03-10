@@ -24,6 +24,7 @@ import AppBarButton from "./AppBarButton";
 
 import { updateWindows } from "../../state/panelSlice";
 import { removeCredentials } from "../../state/credentialsSlice";
+import { setStayLoggedIn } from "../../state/credentialStorage";
 import { setMobile, removeMobile } from "../../state/mobileSlice";
 import { setDark, setLight } from "../../state/themeSlice";
 
@@ -180,6 +181,7 @@ const LogoutDialog = ({ open, setOpen }) => {
         <Button
           variant="standard"
           onClick={() => {
+            setStayLoggedIn(false);
             dispatch(removeCredentials());
             setOpen(false);
           }}

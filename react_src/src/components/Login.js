@@ -2,16 +2,19 @@ import React from "react";
 import { useSelector, useDispatch } from "react-redux";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Checkbox from "@mui/material/Checkbox";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
 import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
 import { validateUser } from "../util/connection";
-import { setCredentials } from "../state/credentialsSlice";
+import { setCredentials, removeCredentials } from "../state/credentialsSlice";
+import { setStayLoggedIn, getStayLoggedIn } from "../state/credentialStorage";
 
 const Login = ({ children }) => {
   const dispatch = useDispatch();
@@ -19,9 +22,15 @@ const Login = ({ children }) => {
 
   const [userInput, setUserInput] = React.useState("");
   const [passphraseInput, setPassphraseInput] = React.useState("");
+  const [stayLoggedIn, setStayLoggedInState] = React.useState(getStayLoggedIn);
   const [error, setError] = React.useState(null);
   const [validating, setValidating] = React.useState(false);
   const [validated, setValidated] = React.useState(false);
+
+  const handleStayLoggedInChange = (e) => {
+    setStayLoggedIn(e.target.checked);
+    setStayLoggedInState(e.target.checked);
+  };
 
   React.useEffect(() => {
     if (!validated && credentials !== null) {
@@ -77,6 +86,18 @@ const Login = ({ children }) => {
                   type="password"
                   onChange={(e) => setPassphraseInput(e.target.value)}
                   disabled={validating}
+                />
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={stayLoggedIn}
+                      onChange={handleStayLoggedInChange}
+                      disabled={validating}
+                      size="small"
+                    />
+                  }
+                  label="Stay logged in"
+                  sx={{ mt: 0.5 }}
                 />
               </Box>
               {error !== null && (

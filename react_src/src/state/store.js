@@ -15,11 +15,12 @@ import panelReducer from "./panelSlice";
 import credentialsReducer from "./credentialsSlice";
 import mobileReducer from "./mobileSlice";
 import themeReducer from "./themeSlice";
+import credentialStorage from "./credentialStorage";
 
-const persist = (key, reducer) => {
+const persist = (key, reducer, customStorage) => {
   const config = {
     key,
-    storage,
+    storage: customStorage ?? storage,
   };
   return persistReducer(config, reducer);
 };
@@ -27,7 +28,7 @@ const persist = (key, reducer) => {
 export const store = configureStore({
   reducer: {
     panel: persist("panel", panelReducer),
-    credentials: persist("credentials", credentialsReducer),
+    credentials: persist("credentials", credentialsReducer, credentialStorage),
     mobile: persist("mobile", mobileReducer),
     theme: persist("theme", themeReducer),
   },

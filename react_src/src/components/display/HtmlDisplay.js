@@ -4,7 +4,7 @@ const HtmlDisplay = ({ data }) => {
   return (
     <div
       dangerouslySetInnerHTML={{
-        __html: data.html,
+        __html: DOMPurify.sanitize(data.html),
       }}
     ></div>
   );

@@ -17,16 +17,20 @@ import MenuItem from "@mui/material/MenuItem";
 import Typography from "@mui/material/Typography";
 import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
 import ComputerIcon from '@mui/icons-material/Computer';
+import DarkModeIcon from '@mui/icons-material/DarkMode';
+import LightModeIcon from '@mui/icons-material/LightMode';
 
 import AppBarButton from "./AppBarButton";
 
 import { updateWindows } from "../../state/panelSlice";
 import { removeCredentials } from "../../state/credentialsSlice";
 import { setMobile, removeMobile } from "../../state/mobileSlice";
+import { setDark, setLight } from "../../state/themeSlice";
 
 const SideMenu = () => {
   const layoutState = useSelector((state) => state.panel);
   const isMobile = useSelector((state) => state.mobile.isMobile);
+  const isDark = useSelector((state) => state.theme?.isDark ?? false);
 
   const uploadFile = React.useRef(null);
   const dispatch = useDispatch();
@@ -90,6 +94,13 @@ const SideMenu = () => {
           title={isMobile ? "Desktop Mode" : "Mobile Mode"}
           icon={isMobile ? <ComputerIcon /> : <PhoneAndroidIcon />}
           onClick={() => dispatch((isMobile ? removeMobile : setMobile)())}
+          closeMenu={() => setShowMenu(false)}
+        />
+
+        <SideMenuItem
+          title={isDark ? "Light Mode" : "Dark Mode"}
+          icon={isDark ? <LightModeIcon /> : <DarkModeIcon />}
+          onClick={() => dispatch((isDark ? setLight : setDark)())}
           closeMenu={() => setShowMenu(false)}
         />
 

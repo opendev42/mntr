@@ -14,6 +14,7 @@ import { configureStore } from "@reduxjs/toolkit";
 import panelReducer from "./panelSlice";
 import credentialsReducer from "./credentialsSlice";
 import mobileReducer from "./mobileSlice";
+import themeReducer from "./themeSlice";
 
 const persist = (key, reducer) => {
   const config = {
@@ -28,6 +29,7 @@ export const store = configureStore({
     panel: persist("panel", panelReducer),
     credentials: persist("credentials", credentialsReducer),
     mobile: persist("mobile", mobileReducer),
+    theme: persist("theme", themeReducer),
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

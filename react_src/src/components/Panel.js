@@ -1,5 +1,6 @@
 import React from "react";
 import { useSelector, useDispatch } from "react-redux";
+import { useTheme } from "@mui/material/styles";
 import Box from "@mui/material/Box";
 import TextField from "@mui/material/TextField";
 import Autocomplete from "@mui/material/Autocomplete";
@@ -14,6 +15,7 @@ import { subscribe, listenChannels } from "../util/connection";
 
 const Panel = ({ panelId, credentials, isMobile }) => {
   const dispatch = useDispatch();
+  const theme = useTheme();
   const [channelData, setChannelData] = React.useState(null);
 
   const channel = useSelector(
@@ -49,7 +51,7 @@ const Panel = ({ panelId, credentials, isMobile }) => {
         display: "flex",
         flex: 1,
         flexDirection: "column",
-        backgroundColor: "#fcfcfc",
+        backgroundColor: theme.palette.background.paper,
         width: "100%",
         height: "100%",
       }}
@@ -104,6 +106,7 @@ const Panel = ({ panelId, credentials, isMobile }) => {
 };
 
 const ChannelSelector = ({ channel, setChannel, timestamp }) => {
+  const theme = useTheme();
   const [showTimestamp, setShowTimestamp] = React.useState(false);
   const [channels, setChannels] = React.useState([]);
   React.useEffect(() => {
@@ -193,7 +196,7 @@ const ChannelSelector = ({ channel, setChannel, timestamp }) => {
               disableUnderline: true,
               style: {
                 fontSize: "0.7rem",
-                color: focused ? "#000" : "#888",
+                color: focused ? theme.palette.text.primary : theme.palette.text.secondary,
               },
             }}
             sx={{

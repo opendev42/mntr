@@ -1,7 +1,20 @@
+import logging
+import re
 import secrets
 from functools import wraps
 from pathlib import Path
 from typing import Callable, Dict, Generator, List, Optional, cast
+
+LOGGER = logging.getLogger(__name__)
+
+_NAME_RE = re.compile(r'^[A-Za-z0-9_\-]{1,64}$')
+
+
+def _validate_name(name: str, label: str) -> None:
+    if not _NAME_RE.match(name):
+        raise MntrServerException(
+            f"Invalid {label}: must be 1-64 alphanumeric/underscore/hyphen characters"
+        )
 
 import flask
 import simplejson as json
@@ -38,13 +51,17 @@ class MntrServer:
     def publish(
         self, channel: str, publisher: str, message: str, encoding: str
     ) -> None:
+        _validate_name(channel, "channel")
+        _validate_name(publisher, "publisher")
+
         if publisher not in self._client_passphrases:
             raise MntrServerException("Unknown publisher")
 
         passphrase = self._client_passphrases[publisher]
         try:
             decrypted_message = aes_decrypt(message=message, passphrase=passphrase)
-        except Exception as e:  # TODO
+        except Exception as e:
+            LOGGER.warning("Decryption failed for publisher %s on channel %s: %s", publisher, channel, e)
             raise MntrServerException("Invalid decryption") from e
 
         channel_data = json.loads(decrypted_message)
@@ -52,6 +69,7 @@ class MntrServer:
         self._state.publish(channel, channel_data, publisher)
 
     def validate(self, subscriber: str) -> Dict[str, str]:
+        _validate_name(subscriber, "subscriber")
         if subscriber not in self._client_passphrases:
             raise MntrServerException(f"Unknown user: {subscriber}")
 
@@ -72,6 +90,10 @@ class MntrServer:
         """
         Listens for updates on a channels
         """
+        _validate_name(subscriber, "subscriber")
+        for channel in channels:
+            _validate_name(channel, "channel")
+
         if not (passphrase := self._client_passphrases.get(subscriber)):
             raise MntrServerException("Invalid subscriber")
 
@@ -139,7 +161,8 @@ class MntrServer:
                 return result, 200
             except MntrServerException as e:
                 return e.message, 400
-            except Exception:
+            except Exception as e:
+                LOGGER.exception("Unexpected error in %s: %s", method.__name__, e)
                 return "Unknown error occurred", 400
 
         return wrapped
@@ -160,7 +183,14 @@ class MntrServer:
 
     @handle_exception
     def api_publish(self, channel: str) -> str:
-        body = cast(Dict, flask.request.json)
+        body = flask.request.json
+        if not isinstance(body, dict):
+            raise MntrServerException("Request body must be a JSON object")
+        for field in ("publisher", "message", "encoding"):
+            if field not in body:
+                raise MntrServerException(f"Missing required field: {field}")
+            if not isinstance(body[field], str):
+                raise MntrServerException(f"Field '{field}' must be a string")
         self.publish(channel, body["publisher"], body["message"], body["encoding"])
         return "ok"
 

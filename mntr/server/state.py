@@ -123,11 +123,12 @@ class MntrState:
                 with open(tmp, "wb") as f:
                     pk.dump(channel_data, f)
                 os.rename(tmp, dest)
-            except Exception:
+            except Exception as e:
+                LOGGER.error("Failed to persist channel %s to %s: %s", channel, dest, e)
                 try:
                     os.remove(tmp)
-                except Exception:
-                    pass
+                except Exception as cleanup_err:
+                    LOGGER.warning("Failed to remove temp file %s: %s", tmp, cleanup_err)
 
     def _get_channel_data(self, channel):
         return self._channel_data.get(channel)

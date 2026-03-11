@@ -71,7 +71,7 @@ class MntrServer:
     def validate(self, subscriber: str) -> Dict[str, str]:
         _validate_name(subscriber, "subscriber")
         if subscriber not in self._client_passphrases:
-            raise MntrServerException(f"Unknown user: {subscriber}")
+            raise MntrServerException("Invalid credentials")
 
         message = json.dumps(
             {

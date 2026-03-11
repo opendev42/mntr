@@ -122,7 +122,11 @@ const SideMenu = () => {
         onChange={(e) => {
           var reader = new FileReader();
           reader.onload = () => {
-            dispatch(updateWindows(JSON.parse(reader.result)));
+            try {
+              dispatch(updateWindows(JSON.parse(reader.result)));
+            } catch {
+              // invalid layout file — ignore
+            }
           };
           reader.readAsText(e.target.files[0]);
           uploadFile.current.value = "";

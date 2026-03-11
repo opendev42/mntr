@@ -3,7 +3,9 @@ import random
 from collections import deque
 from functools import cached_property
 
-import lipsum
+from faker import Faker as _Faker
+
+_faker = _Faker()
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -28,7 +30,7 @@ class PlaintextLoremIpsumPublisher(IntervalPublisher):
     def publish(self):
         return PlaintextData(
             data={
-                "text": lipsum.generate_sentences(self.params["num_sentences"]),
+                "text": _faker.paragraph(nb_sentences=self.params["num_sentences"]),
             }
         )
 
@@ -39,8 +41,8 @@ class HtmlLoremIpsumPublisher(IntervalPublisher):
         return self.params.get("interval", 5)
 
     def publish(self):
-        title = lipsum.generate_words(8)
-        body = lipsum.generate_sentences(5)
+        title = " ".join(_faker.words(8))
+        body = _faker.paragraph(nb_sentences=5)
         content = f"""
         <b>{title}</b>
         <p>{body}</p>
@@ -277,10 +279,10 @@ class AlertPublisher(IntervalPublisher):
         return PlaintextData(
             alert=Alert(
                 severity=self.params["alert_severity"],
-                title=lipsum.generate_words(6),
-                message=lipsum.generate_sentences(1),
+                title=" ".join(_faker.words(6)),
+                message=_faker.sentence(),
             ),
             data={
-                "text": lipsum.generate_sentences(5),
+                "text": _faker.paragraph(nb_sentences=5),
             },
         )

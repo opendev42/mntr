@@ -71,6 +71,7 @@ class MntrServer:
     def validate(self, subscriber: str) -> Dict[str, str]:
         _validate_name(subscriber, "subscriber")
         if subscriber not in self._client_passphrases:
+            LOGGER.warning("Failed login attempt for unknown user: %s", subscriber)
             raise MntrServerException("Invalid credentials")
 
         message = json.dumps(
@@ -81,7 +82,7 @@ class MntrServer:
         )
 
         encrypted_message = aes_encrypt(message, self._client_passphrases[subscriber])
-
+        LOGGER.info("Issued auth challenge for user: %s", subscriber)
         return {"message": encrypted_message}
 
     def subscribe(
@@ -95,7 +96,10 @@ class MntrServer:
             _validate_name(channel, "channel")
 
         if not (passphrase := self._client_passphrases.get(subscriber)):
+            LOGGER.warning("Subscribe rejected for unknown subscriber: %s", subscriber)
             raise MntrServerException("Invalid subscriber")
+
+        LOGGER.info("Subscriber %s connected to channels: %s", subscriber, channels)
 
         for channel_data in self._state.subscribe(channels):
             encrypted = aes_encrypt(

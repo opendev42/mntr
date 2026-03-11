@@ -31,6 +31,7 @@ class MonitorData(NamedTuple):
     @abc.abstractproperty
     def display_type(self) -> str: ...
 
+    @classmethod
     def assert_type(cls, label, obj, expected):
         if not isinstance(obj, expected):
             raise ValueError(
@@ -92,5 +93,4 @@ class ErrorData(MonitorData):
 
     @property
     def display_type(self) -> str:
-        # XXX TODO
-        return "plaintext"
+        return "error"

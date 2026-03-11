@@ -12,11 +12,25 @@ import { useSelector } from "react-redux";
 
 const AppBar = () => {
   const isMobile = useSelector((state) => state.mobile.isMobile);
-  const [time, setTime] = React.useState(Date(Date.now()));
+  const formatTime = () => {
+    const now = new Date();
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const day = days[now.getDay()];
+    const date = now.getDate();
+    const month = months[now.getMonth()];
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    const ss = String(now.getSeconds()).padStart(2, "0");
+    const tz = now.toLocaleTimeString(undefined, { timeZoneName: "short" }).split(" ").pop();
+    return `${day} ${date} ${month}  ·  ${hh}:${mm}:${ss}  ·  ${tz}`;
+  };
+
+  const [time, setTime] = React.useState(formatTime());
 
   React.useEffect(() => {
     const interval = setInterval(() => {
-      setTime(Date(Date.now()));
+      setTime(formatTime());
     }, 1000);
     return () => clearInterval(interval);
   }, []);

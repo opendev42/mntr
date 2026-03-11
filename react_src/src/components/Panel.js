@@ -127,6 +127,20 @@ const ChannelSelector = ({ channel, setChannel, timestamp }) => {
     return () => clearInterval(intervalId);
   }, [timestamp]);
 
+  const formatTimestamp = (ts) => {
+    const now = new Date(ts * 1000);
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const day = days[now.getDay()];
+    const date = now.getDate();
+    const month = months[now.getMonth()];
+    const hh = String(now.getHours()).padStart(2, "0");
+    const mm = String(now.getMinutes()).padStart(2, "0");
+    const ss = String(now.getSeconds()).padStart(2, "0");
+    const tz = now.toLocaleTimeString(undefined, { timeZoneName: "short" }).split(" ").pop();
+    return `${day} ${date} ${month} ${hh}:${mm}:${ss} ${tz}`;
+  };
+
   const [age, setAge] = React.useState(null);
   const formatAge = (ts) => {
     if (ts === null) {
@@ -170,7 +184,7 @@ const ChannelSelector = ({ channel, setChannel, timestamp }) => {
             : focused
               ? channel
               : showTimestamp
-                ? `${channel} / updated ${Date(timestamp)}`
+                ? `${channel} / updated ${formatTimestamp(timestamp)}`
                 : `${channel} / ${age}`
         }
         onChange={(e, v) => {

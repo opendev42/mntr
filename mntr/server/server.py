@@ -1,6 +1,9 @@
+import collections
 import logging
 import re
 import secrets
+import threading
+import time
 from functools import wraps
 from pathlib import Path
 from typing import Callable, Dict, Generator, List, Optional, cast
@@ -8,6 +11,25 @@ from typing import Callable, Dict, Generator, List, Optional, cast
 LOGGER = logging.getLogger(__name__)
 
 _NAME_RE = re.compile(r'^[A-Za-z0-9_\-]{1,64}$')
+
+
+class _RateLimiter:
+    def __init__(self, max_calls: int, window: float):
+        self._max_calls = max_calls
+        self._window = window
+        self._calls: Dict[str, collections.deque] = {}
+        self._lock = threading.Lock()
+
+    def is_limited(self, key: str) -> bool:
+        now = time.time()
+        with self._lock:
+            dq = self._calls.setdefault(key, collections.deque())
+            while dq and dq[0] < now - self._window:
+                dq.popleft()
+            if len(dq) >= self._max_calls:
+                return True
+            dq.append(now)
+            return False
 
 
 def _validate_name(name: str, label: str) -> None:
@@ -36,6 +58,7 @@ class MntrServer:
         self._state = MntrState(store_path=store_path)
         self._encoding = encoding
         self._debug = debug
+        self._validate_limiter = _RateLimiter(max_calls=10, window=60.0)
 
     def heartbeat(self, interval: float = 1.0) -> Generator[Dict, None, None]:
         for update in self._state.heartbeat(interval=interval):
@@ -150,8 +173,8 @@ class MntrServer:
         )
 
         if self._debug:
+            LOGGER.warning("Debug mode enabled: CORS is open to all origins")
             CORS(app)
-            self._client_passphrases["debug"] = "debug"
 
         return app
 
@@ -165,6 +188,8 @@ class MntrServer:
                 return result, 200
             except MntrServerException as e:
                 return e.message, 400
+            except MntrRateLimitException:
+                return "Too many requests", 429
             except Exception as e:
                 LOGGER.exception("Unexpected error in %s: %s", method.__name__, e)
                 return "Unknown error occurred", 400
@@ -183,6 +208,10 @@ class MntrServer:
 
     @handle_exception
     def api_validate(self, subscriber: str):
+        ip = flask.request.remote_addr
+        if self._validate_limiter.is_limited(ip):
+            LOGGER.warning("Rate limit exceeded on /validate from %s", ip)
+            raise MntrRateLimitException()
         return json.dumps(self.validate(subscriber))
 
     @handle_exception
@@ -203,3 +232,7 @@ class MntrServerException(Exception):
     @property
     def message(self):
         return self.args[0]
+
+
+class MntrRateLimitException(Exception):
+    pass

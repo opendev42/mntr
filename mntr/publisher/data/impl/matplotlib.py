@@ -9,6 +9,6 @@ class MatplotlibImageData(ImageData):
     @classmethod
     def from_figure(cls, fig: plt.Figure):
         b = io.BytesIO()
-        fig.savefig(b, format="png", bbox_inches="tight", transparent=True)
+        fig.savefig(b, format="png", bbox_inches="tight", facecolor="white")
         plt.close(fig)
         return cls.from_bytes(b.getvalue())

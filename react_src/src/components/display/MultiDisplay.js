@@ -1,4 +1,5 @@
 import React from "react";
+import { useTheme } from "@mui/material/styles";
 import Box from "@mui/material/Box";
 import Divider from "@mui/material/Divider";
 import Select from "@mui/material/Select";
@@ -22,6 +23,7 @@ import Display from "./Display";
 // TODO: cleanup
 
 const MultiDisplay = ({ data, state, setState }) => {
+  const theme = useTheme();
   const [selected, setSelected] = React.useState(null);
   const [cycleConfig, setCycleConfig_] = React.useState(
     state.cycleConfig || {
@@ -89,7 +91,7 @@ const MultiDisplay = ({ data, state, setState }) => {
             input={
               <Input
                 style={{
-                  backgroundColor: "#f4f4f4",
+                  backgroundColor: theme.palette.action.hover,
                 }}
                 disableUnderline
               />

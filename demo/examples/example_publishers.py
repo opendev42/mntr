@@ -249,7 +249,7 @@ class ImagePublisher(IntervalPublisher):
         ax.hist(-1 + 0.7 * np.random.randn(1000), alpha=0.5)
         ax.grid(True)
         b = io.BytesIO()
-        fig.savefig(b, format="png", bbox_inches="tight", transparent=True)
+        fig.savefig(b, format="png", bbox_inches="tight", facecolor="white")
         plt.close(fig)
 
         return ImageData.from_bytes(b.getvalue(), image_format="png")

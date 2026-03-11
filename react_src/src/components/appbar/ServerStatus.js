@@ -39,7 +39,7 @@ const StatusDot = ({ secondsSinceUpdate, tolerance }) => {
           width: 12,
           height: 12,
           borderRadius: "50%",
-          backgroundColor: secondsSinceUpdate < tolerance ? "#0f0" : "#f00",
+          backgroundColor: secondsSinceUpdate < tolerance ? "#4caf50" : "#f44336",
         }}
       />
     </Tooltip>

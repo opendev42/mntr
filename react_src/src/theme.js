@@ -76,12 +76,16 @@ export const makeTheme = (isDark) =>
     palette: {
       mode: isDark ? "dark" : "light",
       primary: {
-        main: "#021b5c",
+        main: isDark ? "#5c8ad4" : "#021b5c",
       },
       ...(isDark && {
         background: {
           default: "#121212",
           paper: "#1e1e1e",
+        },
+        text: {
+          primary: "#e8eaf0",
+          secondary: "#9ba4b8",
         },
       }),
     },

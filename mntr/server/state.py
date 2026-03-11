@@ -1,6 +1,6 @@
+import json
 import logging
 import os
-import pickle as pk
 import time
 import uuid
 from pathlib import Path
@@ -28,13 +28,17 @@ class MntrState:
             return
 
         for fn in self._store_path.iterdir():
-            if not fn.stem.startswith("channel-"):
+            if not (fn.suffix == ".json" and fn.stem.startswith("channel-")):
                 continue
 
-            with open(fn, "rb") as f:
-                channel_data = pk.load(f)
+            try:
+                with open(fn, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                channel_data = ChannelData(**data)
                 channel = fn.stem.split("-", 1)[1]
                 self.update(channel, channel_data, store=False)
+            except Exception as e:
+                LOGGER.error("Failed to load channel state from %s: %s", fn, e)
 
     def heartbeat(self, interval: float = 1) -> Generator[Dict, None, None]:
         last_channels: List[str] = []
@@ -117,11 +121,11 @@ class MntrState:
 
         if store and self._store_path is not None:
             self._store_path.mkdir(exist_ok=True, parents=True)
-            dest = self._store_path / f"channel-{channel}.pkl"
-            tmp = self._store_path / f".tmp.{uuid.uuid4()}.pkl"
+            dest = self._store_path / f"channel-{channel}.json"
+            tmp = self._store_path / f".tmp.{uuid.uuid4()}.json"
             try:
-                with open(tmp, "wb") as f:
-                    pk.dump(channel_data, f)
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump(channel_data._asdict(), f)
                 os.rename(tmp, dest)
             except Exception as e:
                 LOGGER.error("Failed to persist channel %s to %s: %s", channel, dest, e)

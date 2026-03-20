@@ -12,7 +12,7 @@ import Typography from "@mui/material/Typography";
 import TextField from "@mui/material/TextField";
 import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
-import { validateUser } from "../util/connection";
+import { validateUser, checkAdmin } from "../util/connection";
 import { setCredentials, removeCredentials } from "../state/credentialsSlice";
 import { setStayLoggedIn, getStayLoggedIn } from "../state/credentialStorage";
 
@@ -35,10 +35,21 @@ const Login = ({ children }) => {
   React.useEffect(() => {
     if (!validated && credentials !== null) {
       validateUser(credentials.user, credentials.passphrase)
-        .then(() => {
-          setValidating(false);
-          setValidated(true);
-        })
+        .then(() =>
+          checkAdmin(credentials.user, credentials.passphrase).then((res) => {
+            dispatch(
+              setCredentials({
+                credentials: {
+                  user: credentials.user,
+                  passphrase: credentials.passphrase,
+                },
+                isAdmin: res.is_admin,
+              }),
+            );
+            setValidating(false);
+            setValidated(true);
+          }),
+        )
         .catch((e) => {
           setUserInput(credentials.user);
           setPassphraseInput(credentials.passphrase);
@@ -133,20 +144,23 @@ const Login = ({ children }) => {
                       setError(null);
                       setValidating(true);
                       validateUser(userInput, passphraseInput)
-                        .then(() => {
-                          dispatch(
-                            setCredentials({
-                              credentials: {
-                                user: userInput,
-                                passphrase: passphraseInput,
-                              },
-                            }),
-                          );
-                          setValidating(false);
-                          setValidated(true);
-                          setUserInput("");
-                          setPassphraseInput("");
-                        })
+                        .then(() =>
+                          checkAdmin(userInput, passphraseInput).then((res) => {
+                            dispatch(
+                              setCredentials({
+                                credentials: {
+                                  user: userInput,
+                                  passphrase: passphraseInput,
+                                },
+                                isAdmin: res.is_admin,
+                              }),
+                            );
+                            setValidating(false);
+                            setValidated(true);
+                            setUserInput("");
+                            setPassphraseInput("");
+                          }),
+                        )
                         .catch((e) => {
                           setError(e);
                           setValidating(false);

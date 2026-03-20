@@ -15,12 +15,14 @@ import Menu from "@mui/material/Menu";
 import MenuIcon from "@mui/icons-material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Typography from "@mui/material/Typography";
+import PeopleIcon from "@mui/icons-material/People";
 import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
 import ComputerIcon from '@mui/icons-material/Computer';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
 import LightModeIcon from '@mui/icons-material/LightMode';
 
 import AppBarButton from "./AppBarButton";
+import AdminDialog from "./AdminDialog";
 
 import { updateWindows } from "../../state/panelSlice";
 import { removeCredentials } from "../../state/credentialsSlice";
@@ -32,6 +34,7 @@ const SideMenu = () => {
   const layoutState = useSelector((state) => state.panel);
   const isMobile = useSelector((state) => state.mobile.isMobile);
   const isDark = useSelector((state) => state.theme?.isDark ?? false);
+  const isAdmin = useSelector((state) => state.credentials.isAdmin);
 
   const uploadFile = React.useRef(null);
   const dispatch = useDispatch();
@@ -41,6 +44,7 @@ const SideMenu = () => {
 
   const [helpDialogOpen, setHelpDialogOpen] = React.useState(false);
   const [logoutDialogOpen, setLogoutDialogOpen] = React.useState(false);
+  const [adminDialogOpen, setAdminDialogOpen] = React.useState(false);
 
   return (
     <>
@@ -98,6 +102,15 @@ const SideMenu = () => {
           closeMenu={() => setShowMenu(false)}
         />
 
+        {isAdmin && (
+          <SideMenuItem
+            title="Manage Users"
+            icon={<PeopleIcon />}
+            onClick={() => setAdminDialogOpen(true)}
+            closeMenu={() => setShowMenu(false)}
+          />
+        )}
+
         <SideMenuItem
           title={isDark ? "Light Mode" : "Dark Mode"}
           icon={isDark ? <LightModeIcon /> : <DarkModeIcon />}
@@ -114,6 +127,7 @@ const SideMenu = () => {
       </Menu>
       <HelpDialog open={helpDialogOpen} setOpen={setHelpDialogOpen} />
       <LogoutDialog open={logoutDialogOpen} setOpen={setLogoutDialogOpen} />
+      {isAdmin && <AdminDialog open={adminDialogOpen} setOpen={setAdminDialogOpen} />}
       <input
         type="file"
         id="file"

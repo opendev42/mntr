@@ -17,10 +17,13 @@ def main():
 
     client_passphrases = yaml.safe_load(args.client_passphrases.read_text())
 
+    admin_users = set(client_passphrases.pop("_admins", []))
+
     server = MntrServer(
         debug=args.debug,
         store_path=args.store_path,
         client_passphrases=client_passphrases,
+        admin_users=admin_users,
     )
     app = server.get_app(static_folder=Path(__file__).parent.parent / "web")
     app.run(args.address, port=args.port)

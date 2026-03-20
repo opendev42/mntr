@@ -133,9 +133,68 @@ const validateUser = (user, passphrase) => {
   });
 };
 
+const checkAdmin = (user, passphrase) => {
+  return fetch(`${API_URL}/admin/check`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user, passphrase }),
+  })
+    .then((r) => {
+      if (!r.ok) return { is_admin: false };
+      return r.json();
+    })
+    .catch(() => ({ is_admin: false }));
+};
+
+const adminListUsers = (adminUser, adminPassphrase) => {
+  return fetch(`${API_URL}/admin/users`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ admin_user: adminUser, admin_passphrase: adminPassphrase }),
+  }).then((r) => {
+    if (!r.ok) return r.text().then((t) => Promise.reject(t));
+    return r.json();
+  });
+};
+
+const adminAddUser = (adminUser, adminPassphrase, newUser, newPassphrase) => {
+  return fetch(`${API_URL}/admin/add_user`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      admin_user: adminUser,
+      admin_passphrase: adminPassphrase,
+      new_user: newUser,
+      new_passphrase: newPassphrase,
+    }),
+  }).then((r) => {
+    if (!r.ok) return r.text().then((t) => Promise.reject(t));
+    return r.json();
+  });
+};
+
+const adminRemoveUser = (adminUser, adminPassphrase, targetUser) => {
+  return fetch(`${API_URL}/admin/remove_user`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      admin_user: adminUser,
+      admin_passphrase: adminPassphrase,
+      target_user: targetUser,
+    }),
+  }).then((r) => {
+    if (!r.ok) return r.text().then((t) => Promise.reject(t));
+    return r.json();
+  });
+};
+
 export {
   subscribe,
   listenChannels,
   listenHeartbeat,
   validateUser,
+  checkAdmin,
+  adminListUsers,
+  adminAddUser,
+  adminRemoveUser,
 };

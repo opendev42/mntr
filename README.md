@@ -47,6 +47,19 @@ client0: "client0"
 client1: "client1"
 ```
 
+### Admin users
+
+To grant admin privileges to a client, add a `_admins` key to the passphrases file with a list of client names:
+
+```yaml
+_admins:
+  - client0
+client0: "client0"
+client1: "client1"
+```
+
+Admin users can manage other users (add, remove, change passphrases) through the web dashboard.
+
 ## Publishers
 
 Publishers send data to named channels on the server.

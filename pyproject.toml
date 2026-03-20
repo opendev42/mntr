@@ -1,3 +1,45 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mntr"
+version = "0.1.0"
+description = "A real-time monitoring dashboard with encrypted pub/sub"
+requires-python = ">=3.10"
+dependencies = [
+    "Flask>=3.0",
+    "Flask-Cors>=4.0",
+    "pycryptodome>=3.19",
+    "PyYAML>=6.0",
+    "requests>=2.31",
+    "simplejson>=3.19",
+]
+
+[project.optional-dependencies]
+publisher = [
+    "matplotlib>=3.8",
+    "pandas>=2.0",
+]
+dev = [
+    "mypy>=1.0",
+    "pandas-stubs",
+    "pytest>=7.0",
+    "ruff>=0.1",
+    "types-PyYAML",
+    "types-pytz",
+]
+
+[project.scripts]
+mntr-server = "mntr.server.__main__:main"
+mntr-pipe = "mntr.publisher.pipe:main"
+
+[tool.setuptools.packages.find]
+include = ["mntr*"]
+
+[tool.setuptools.package-data]
+"mntr" = ["web/**/*"]
+
 [tool.ruff]
 
 lint.select = [

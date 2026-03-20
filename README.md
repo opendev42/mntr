@@ -9,15 +9,16 @@ and an API for clients to publish data to.
 - Python 3.10 or later
 - No root/system-level installation required
 
-Install dependencies into a virtual environment:
+Install into a virtual environment:
 
 ```bash
 virtualenv venv
-venv/bin/pip install -r requirements.txt
+venv/bin/pip install -e .            # core + server
+venv/bin/pip install -e '.[publisher]'  # adds matplotlib & pandas
 ```
 
 > All commands in this README are run from the root directory of the repository
-> with `PYTHONPATH=.` set (or the virtual environment activated).
+> with the virtual environment activated.
 
 ## Server
 

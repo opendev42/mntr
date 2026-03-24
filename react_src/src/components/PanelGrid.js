@@ -49,6 +49,7 @@ const DesktopPanelGrid = () => {
         cols={16}
         rowHeight={10}
         compactType={null}
+        preventCollision={true}
         onLayoutChange={(e) => {
           const newPanels = {};
           e.forEach((x) => {

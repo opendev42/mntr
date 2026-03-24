@@ -4,24 +4,31 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mntr"
-version = "0.2.0"
+version = "0.3.0"
 description = "A real-time monitoring dashboard with encrypted pub/sub"
 requires-python = ">=3.10"
 dependencies = [
-    "Flask>=3.0",
-    "Flask-Cors>=4.0",
     "pycryptodome>=3.19",
     "PyYAML>=6.0",
-    "requests>=2.31",
     "simplejson>=3.19",
 ]
 
 [project.optional-dependencies]
+server = [
+    "Flask>=3.0",
+    "Flask-Cors>=4.0",
+]
 publisher = [
+    "requests>=2.31",
+]
+publisher-extras = [
+    "mntr[publisher]",
     "matplotlib>=3.8",
     "pandas>=2.0",
 ]
 dev = [
+    "mntr[server]",
+    "mntr[publisher-extras]",
     "mypy>=1.0",
     "pandas-stubs",
     "pytest>=7.0",

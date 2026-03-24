@@ -33,9 +33,10 @@ The project virtualenv is `venv.mntr` (not `venv`).
 ```bash
 # Python
 source venv.mntr/bin/activate
-pip install -e .                  # core + server
-pip install -e '.[publisher]'     # + matplotlib, pandas
-pip install -e '.[dev]'           # + pytest, mypy, ruff
+pip install -e '.[server]'           # server (Flask)
+pip install -e '.[publisher]'        # publisher (requests)
+pip install -e '.[publisher-extras]' # + matplotlib, pandas
+pip install -e '.[dev]'              # all of the above + pytest, mypy, ruff
 
 # React
 cd react_src && npm install

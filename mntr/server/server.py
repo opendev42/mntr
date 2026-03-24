@@ -40,10 +40,16 @@ def _validate_name(name: str, label: str) -> None:
             f"Invalid {label}: must be 1-64 alphanumeric/underscore/hyphen characters"
         )
 
-import flask
+try:
+    import flask
+    from flask_cors import CORS  # type: ignore[import-untyped]
+except ImportError as e:
+    raise ImportError(
+        "Flask is required for the mntr server. "
+        "Install with: pip install mntr[server]"
+    ) from e
 import simplejson as json
 import yaml
-from flask_cors import CORS  # type: ignore[import-untyped]
 
 from mntr.server.state import MntrState
 from mntr.util.encryption import aes_decrypt, aes_encrypt

@@ -13,9 +13,14 @@ Install into a virtual environment:
 
 ```bash
 virtualenv venv
-venv/bin/pip install -e .            # core + server
-venv/bin/pip install -e '.[publisher]'  # adds matplotlib & pandas
+venv/bin/pip install -e '.[server]'           # server (Flask)
+venv/bin/pip install -e '.[publisher]'        # publisher (requests)
+venv/bin/pip install -e '.[publisher-extras]' # publisher + matplotlib & pandas
+venv/bin/pip install -e '.[dev]'              # all of the above + test/lint tools
 ```
+
+The base package contains only shared dependencies (encryption, YAML, JSON).
+Server and publisher extras can be installed independently of each other.
 
 > All commands in this README are run from the root directory of the repository
 > with the virtual environment activated.

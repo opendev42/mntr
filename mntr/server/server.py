@@ -63,12 +63,14 @@ class MntrServer:
         debug: bool = False,
         encoding: str = "utf8",
         admin_users: Optional[Set[str]] = None,
+        rate_limit: int = 10,
+        rate_limit_window: float = 60.0,
     ):
         self._client_passphrases = dict(client_passphrases)
         self._state = MntrState(store_path=store_path)
         self._encoding = encoding
         self._debug = debug
-        self._validate_limiter = _RateLimiter(max_calls=10, window=60.0)
+        self._validate_limiter = _RateLimiter(max_calls=rate_limit, window=rate_limit_window)
         self._admin_users = set(admin_users) if admin_users else set()
         self._store_path = store_path
         self._lock = threading.Lock()

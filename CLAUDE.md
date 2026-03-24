@@ -83,7 +83,7 @@ Tests live alongside source code in `test/` subdirectories (e.g., `mntr/server/t
 - **Encryption flow:** Publisher encrypts with own passphrase → server decrypts & re-encrypts with subscriber's passphrase → browser decrypts client-side. Passphrases never sent to server.
 - **Streaming:** Server-Sent Events (SSE) for real-time dashboard updates.
 - **State:** In-memory channel storage with optional JSON file persistence (`MntrState`). No traditional database.
-- **Rate limiting:** 10 validation attempts per IP per 60 seconds on `/validate`.
+- **Rate limiting:** 10 validation attempts per IP per 60 seconds (configurable) on `/validate`.
 - **Name validation:** `^[A-Za-z0-9_\-]{1,64}$` for channel and publisher names.
 - **Credentials:** YAML file with `username: passphrase` pairs; `_admins` key lists admin usernames.
 - **React build** is bundled into `mntr/web/` and served by Flask — no separate frontend deployment needed.

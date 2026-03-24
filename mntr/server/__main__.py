@@ -24,6 +24,8 @@ def main():
         store_path=args.store_path,
         client_passphrases=client_passphrases,
         admin_users=admin_users,
+        rate_limit=args.rate_limit,
+        rate_limit_window=args.rate_limit_window,
     )
     app = server.get_app(static_folder=Path(__file__).parent.parent / "web")
     app.run(args.address, port=args.port)
@@ -60,6 +62,18 @@ def parse_args():
         default=False,
         help="Runs the server in debugging mode. "
         "(Allows CORS, and provides a `debug` user. Password = `debug`)",
+    )
+    parser.add_argument(
+        "--rate_limit",
+        type=int,
+        default=10,
+        help="Max validation attempts per IP within the rate limit window (default: 10).",
+    )
+    parser.add_argument(
+        "--rate_limit_window",
+        type=float,
+        default=60.0,
+        help="Rate limit window in seconds (default: 60).",
     )
 
     return parser.parse_args()

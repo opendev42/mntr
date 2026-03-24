@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mntr"
-version = "0.1.0"
+version = "0.1.1"
 description = "A real-time monitoring dashboard with encrypted pub/sub"
 requires-python = ">=3.10"
 dependencies = [

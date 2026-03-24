@@ -12,7 +12,13 @@ const ChartJSDisplay = ({ data }) => {
   const themeOptions = {
     plugins: {
       legend: { labels: { color: textColor } },
-      tooltip: { titleColor: textColor, bodyColor: textColor },
+      tooltip: {
+        titleColor: theme.palette.common.white,
+        bodyColor: theme.palette.common.white,
+        backgroundColor: "rgba(0, 0, 0, 0.8)",
+        borderColor: theme.palette.divider,
+        borderWidth: 1,
+      },
     },
     scales: {
       x: { ticks: { color: textColor }, grid: { color: gridColor } },

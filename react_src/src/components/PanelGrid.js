@@ -48,6 +48,7 @@ const DesktopPanelGrid = () => {
         className="layout"
         cols={16}
         rowHeight={10}
+        compactType={null}
         onLayoutChange={(e) => {
           const newPanels = {};
           e.forEach((x) => {

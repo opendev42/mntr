@@ -32,6 +32,47 @@ const Login = ({ children }) => {
     setStayLoggedInState(e.target.checked);
   };
 
+  const handleLogin = () => {
+    if (userInput === "") {
+      setError("User cannot be empty");
+      return;
+    } else if (passphraseInput === "") {
+      setError("Passphrase cannot be empty");
+      return;
+    }
+    setError(null);
+    setValidating(true);
+    validateUser(userInput, passphraseInput)
+      .then((sessionId) =>
+        checkAdmin(sessionId, passphraseInput).then((res) => {
+          dispatch(
+            setCredentials({
+              credentials: {
+                user: userInput,
+                passphrase: passphraseInput,
+              },
+              isAdmin: res.is_admin,
+              sessionId,
+            }),
+          );
+          setValidating(false);
+          setValidated(true);
+          setUserInput("");
+          setPassphraseInput("");
+        }),
+      )
+      .catch((e) => {
+        setError(e);
+        setValidating(false);
+      });
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !validating) {
+      handleLogin();
+    }
+  };
+
   React.useEffect(() => {
     if (!validated && credentials !== null) {
       validateUser(credentials.user, credentials.passphrase)
@@ -54,6 +95,7 @@ const Login = ({ children }) => {
         .catch((e) => {
           setUserInput(credentials.user);
           setPassphraseInput(credentials.passphrase);
+          dispatch(removeCredentials());
           setError(e);
           setValidating(false);
         });
@@ -62,8 +104,8 @@ const Login = ({ children }) => {
 
   return (
     <>
-      {validated && credentials !== null && children}
-      {(!validated || credentials === null) && (
+      {credentials !== null && children}
+      {credentials === null && (
         <>
           <Dialog
             open={true}
@@ -89,6 +131,7 @@ const Login = ({ children }) => {
                   onChange={(e) => {
                     setUserInput(e.target.value);
                   }}
+                  onKeyDown={handleKeyDown}
                   disabled={validating}
                 />
                 <TextField
@@ -97,6 +140,7 @@ const Login = ({ children }) => {
                   value={passphraseInput}
                   type="password"
                   onChange={(e) => setPassphraseInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
                   disabled={validating}
                 />
                 <FormControlLabel
@@ -134,40 +178,7 @@ const Login = ({ children }) => {
                   <Button
                     variant="standard"
                     disabled={validating}
-                    onClick={() => {
-                      if (userInput === "") {
-                        setError("User cannot be empty");
-                        return;
-                      } else if (passphraseInput === "") {
-                        setError("Passphrase cannot be empty");
-                        return;
-                      }
-                      setError(null);
-                      setValidating(true);
-                      validateUser(userInput, passphraseInput)
-                        .then((sessionId) =>
-                          checkAdmin(sessionId, passphraseInput).then((res) => {
-                            dispatch(
-                              setCredentials({
-                                credentials: {
-                                  user: userInput,
-                                  passphrase: passphraseInput,
-                                },
-                                isAdmin: res.is_admin,
-                                sessionId,
-                              }),
-                            );
-                            setValidating(false);
-                            setValidated(true);
-                            setUserInput("");
-                            setPassphraseInput("");
-                          }),
-                        )
-                        .catch((e) => {
-                          setError(e);
-                          setValidating(false);
-                        });
-                    }}
+                    onClick={handleLogin}
                   >
                     Login
                   </Button>

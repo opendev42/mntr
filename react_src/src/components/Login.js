@@ -109,6 +109,7 @@ const Login = ({ children }) => {
         <>
           <Dialog
             open={true}
+            onKeyDown={handleKeyDown}
             PaperProps={{
               sx: {
                 width: "100%",
@@ -131,7 +132,6 @@ const Login = ({ children }) => {
                   onChange={(e) => {
                     setUserInput(e.target.value);
                   }}
-                  onKeyDown={handleKeyDown}
                   disabled={validating}
                 />
                 <TextField
@@ -140,7 +140,6 @@ const Login = ({ children }) => {
                   value={passphraseInput}
                   type="password"
                   onChange={(e) => setPassphraseInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
                   disabled={validating}
                 />
                 <FormControlLabel

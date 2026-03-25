@@ -43,3 +43,15 @@ def aes_decrypt(message: str, passphrase: str, **kwargs) -> str:
         return cipher.decrypt_and_verify(ciphertext, tag).decode("utf-8")
     except ValueError as e:
         raise ValueError("Decryption failed: invalid key or corrupted data") from e
+
+
+def _url_safe_to_standard_b64(s: str) -> str:
+    s = s.replace("-", "+").replace("_", "/")
+    pad = 4 - len(s) % 4
+    if pad != 4:
+        s += "=" * pad
+    return s
+
+
+def aes_decrypt_url_safe(message: str, passphrase: str, **kwargs) -> str:
+    return aes_decrypt(_url_safe_to_standard_b64(message), passphrase, **kwargs)

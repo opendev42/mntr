@@ -8,7 +8,17 @@ import threading
 import time
 from functools import wraps
 from pathlib import Path
-from typing import Callable, Dict, Generator, List, Optional, Set, cast
+from typing import (
+    Callable,
+    Dict,
+    Generator,
+    List,
+    NamedTuple,
+    Optional,
+    Set,
+    Tuple,
+    cast,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -52,7 +62,13 @@ import simplejson as json
 import yaml
 
 from mntr.server.state import MntrState
-from mntr.util.encryption import aes_decrypt, aes_encrypt
+from mntr.util.encryption import aes_decrypt, aes_decrypt_url_safe, aes_encrypt
+
+
+class _Session(NamedTuple):
+    user: str
+    passphrase: str
+    created_at: float
 
 
 class MntrServer:
@@ -65,97 +81,128 @@ class MntrServer:
         admin_users: Optional[Set[str]] = None,
         rate_limit: int = 10,
         rate_limit_window: float = 60.0,
+        session_ttl: float = 86400.0,
     ):
         self._client_passphrases = dict(client_passphrases)
         self._state = MntrState(store_path=store_path)
         self._encoding = encoding
         self._debug = debug
-        self._validate_limiter = _RateLimiter(max_calls=rate_limit, window=rate_limit_window)
+        self._validate_limiter = _RateLimiter(
+            max_calls=rate_limit, window=rate_limit_window
+        )
+        self._admin_limiter = _RateLimiter(
+            max_calls=rate_limit, window=rate_limit_window
+        )
         self._admin_users = set(admin_users) if admin_users else set()
         self._store_path = store_path
         self._lock = threading.Lock()
+        self._sessions: Dict[str, _Session] = {}
+        self._session_lock = threading.Lock()
+        self._session_ttl = session_ttl
         self._load_stored_credentials()
 
-    def heartbeat(self, interval: float = 1.0) -> Generator[Dict, None, None]:
+    def _create_session(self, user: str) -> str:
+        session_id = secrets.token_hex(32)
+        passphrase = self._client_passphrases[user]
+        with self._session_lock:
+            self._sessions[session_id] = _Session(
+                user=user, passphrase=passphrase, created_at=time.time()
+            )
+        return session_id
+
+    def _resolve_session(self, session_id: str) -> _Session:
+        with self._session_lock:
+            session = self._sessions.get(session_id)
+        if session is None:
+            raise MntrServerException("Invalid session")
+        if time.time() - session.created_at > self._session_ttl:
+            with self._session_lock:
+                self._sessions.pop(session_id, None)
+            raise MntrServerException("Session expired")
+        return session
+
+    def _identify_user(self, encrypted_message: str) -> Tuple[str, str]:
+        for user, passphrase in self._client_passphrases.items():
+            try:
+                aes_decrypt(encrypted_message, passphrase)
+                return user, passphrase
+            except (ValueError, Exception):
+                continue
+        raise MntrServerException("Invalid credentials")
+
+    def heartbeat(
+        self, passphrase: str, interval: float = 1.0
+    ) -> Generator[Dict, None, None]:
         for update in self._state.heartbeat(interval=interval):
             if channels := update.get("channels"):
-                yield {"type": "channels", "data": channels}
+                encrypted = aes_encrypt(
+                    json.dumps(channels), passphrase
+                )
+                yield {"type": "channels", "data": encrypted}
 
             if now := update.get("heartbeat"):
+                encrypted = aes_encrypt(
+                    json.dumps(now), passphrase
+                )
                 yield {
                     "type": "heartbeat",
-                    "data": now,
+                    "data": encrypted,
                 }
 
     def publish(
-        self, channel: str, publisher: str, message: str, encoding: str
+        self, session: _Session, encrypted_payload: str
     ) -> None:
-        _validate_name(channel, "channel")
-        _validate_name(publisher, "publisher")
-
-        if publisher not in self._client_passphrases:
-            raise MntrServerException("Unknown publisher")
-
-        passphrase = self._client_passphrases[publisher]
         try:
-            decrypted_message = aes_decrypt(message=message, passphrase=passphrase)
+            decrypted = aes_decrypt(encrypted_payload, session.passphrase)
         except Exception as e:
-            LOGGER.warning("Decryption failed for publisher %s on channel %s: %s", publisher, channel, e)
+            LOGGER.warning("Decryption failed for publisher %s: %s", session.user, e)
             raise MntrServerException("Invalid decryption") from e
 
-        channel_data = json.loads(decrypted_message)
+        payload = json.loads(decrypted)
+        channel = payload.get("channel", "")
+        _validate_name(channel, "channel")
 
-        self._state.publish(channel, channel_data, publisher)
+        channel_data = payload.get("data", {})
+        self._state.publish(channel, channel_data, session.user)
 
-    def validate(self, subscriber: str) -> Dict[str, str]:
-        _validate_name(subscriber, "subscriber")
-        if subscriber not in self._client_passphrases:
-            LOGGER.warning("Failed login attempt for unknown user: %s", subscriber)
-            raise MntrServerException("Invalid credentials")
+    def validate(self, encrypted_message: str) -> Dict[str, str]:
+        user, passphrase = self._identify_user(encrypted_message)
+        session_id = self._create_session(user)
 
-        message = json.dumps(
+        response = json.dumps(
             {
-                "subscriber": subscriber,
+                "session_id": session_id,
+                "subscriber": user,
                 "nonce": secrets.token_hex(16),
             }
         )
 
-        encrypted_message = aes_encrypt(message, self._client_passphrases[subscriber])
-        LOGGER.info("Issued auth challenge for user: %s", subscriber)
-        return {"message": encrypted_message}
+        encrypted_response = aes_encrypt(response, passphrase)
+        LOGGER.info("Issued session for user: %s", user)
+        return {"message": encrypted_response}
 
     def subscribe(
-        self, subscriber: str, channels: List[str]
+        self, passphrase: str, channels: List[str]
     ) -> Generator[Dict, None, None]:
         """
-        Listens for updates on a channels
+        Listens for updates on channels, encrypting full event payloads.
         """
-        _validate_name(subscriber, "subscriber")
         for channel in channels:
             _validate_name(channel, "channel")
 
-        if not (passphrase := self._client_passphrases.get(subscriber)):
-            LOGGER.warning("Subscribe rejected for unknown subscriber: %s", subscriber)
-            raise MntrServerException("Invalid subscriber")
-
-        LOGGER.info("Subscriber %s connected to channels: %s", subscriber, channels)
-
         for channel_data in self._state.subscribe(channels):
+            payload = {
+                "channel": channel_data.channel,
+                "timestamp": channel_data.timestamp,
+                "publisher": channel_data.publisher,
+                "content": channel_data.content,
+            }
             encrypted = aes_encrypt(
-                json.dumps(channel_data.content, ignore_nan=True),
+                json.dumps(payload, ignore_nan=True),
                 passphrase,
                 encoding=self._encoding,
             )
-
-            data = {
-                "channel": channel_data.channel,
-                "data": {
-                    "content": encrypted,
-                    "timestamp": channel_data.timestamp,
-                    "publisher": channel_data.publisher,
-                },
-            }
-            yield data
+            yield {"data": encrypted}
 
     @classmethod
     def make_event_stream(cls, generator: Generator):
@@ -181,10 +228,10 @@ class MntrServer:
         def index():
             return flask.send_from_directory(app.static_folder, "index.html")
 
-        app.route("/publish/<string:channel>", methods=["POST"])(self.api_publish)
-        app.route("/server")(self.api_server)
-        app.route("/validate/<string:subscriber>")(self.api_validate)
-        app.route("/subscribe/<string:subscriber>/<string:channels>")(
+        app.route("/publish", methods=["POST"])(self.api_publish)
+        app.route("/server/<string:session_id>")(self.api_server)
+        app.route("/validate", methods=["POST"])(self.api_validate)
+        app.route("/subscribe/<string:session_id>/<path:encrypted_blob>")(
             self.api_subscribe
         )
         app.route("/admin/check", methods=["POST"])(self.api_admin_check)
@@ -217,45 +264,52 @@ class MntrServer:
         return wrapped
 
     @handle_exception
-    def api_server(self) -> Generator[str, None, None]:
-        return self.make_event_stream(self.heartbeat())
+    def api_server(self, session_id: str) -> Generator[str, None, None]:
+        session = self._resolve_session(session_id)
+        return self.make_event_stream(self.heartbeat(session.passphrase))
 
     @handle_exception
     def api_subscribe(
-        self, subscriber: str, channels: str
+        self, session_id: str, encrypted_blob: str
     ) -> Generator[str, None, None]:
-        return self.make_event_stream(self.subscribe(subscriber, channels.split(",")))
+        session = self._resolve_session(session_id)
+        channels_json = aes_decrypt_url_safe(encrypted_blob, session.passphrase)
+        channels = json.loads(channels_json)
+        if not isinstance(channels, list):
+            raise MntrServerException("Invalid channel list")
+        LOGGER.info("Subscriber %s connected to channels: %s", session.user, channels)
+        return self.make_event_stream(self.subscribe(session.passphrase, channels))
 
     @handle_exception
-    def api_validate(self, subscriber: str):
+    def api_validate(self):
         ip = flask.request.remote_addr
         if self._validate_limiter.is_limited(ip):
             LOGGER.warning("Rate limit exceeded on /validate from %s", ip)
             raise MntrRateLimitException()
-        return json.dumps(self.validate(subscriber))
+        body = flask.request.json
+        if not isinstance(body, dict) or "message" not in body:
+            raise MntrServerException("Missing required field: message")
+        return json.dumps(self.validate(body["message"]))
 
     @handle_exception
-    def api_publish(self, channel: str) -> str:
+    def api_publish(self) -> str:
         body = flask.request.json
         if not isinstance(body, dict):
             raise MntrServerException("Request body must be a JSON object")
-        for field in ("publisher", "message", "encoding"):
+        for field in ("session_id", "payload"):
             if field not in body:
                 raise MntrServerException(f"Missing required field: {field}")
-            if not isinstance(body[field], str):
-                raise MntrServerException(f"Field '{field}' must be a string")
-        self.publish(channel, body["publisher"], body["message"], body["encoding"])
-        return "ok"
+        session = self._resolve_session(body["session_id"])
+        self.publish(session, body["payload"])
+        return json.dumps({"status": "ok"})
 
 
-    def _authenticate_admin(self, body: Dict) -> str:
-        admin_user = body.get("admin_user", "")
-        admin_passphrase = body.get("admin_passphrase", "")
-        if admin_user not in self._admin_users:
+    def _authenticate_admin(self, body: Dict) -> _Session:
+        session_id = body.get("session_id", "")
+        session = self._resolve_session(session_id)
+        if session.user not in self._admin_users:
             raise MntrServerException("Not an admin user")
-        if self._client_passphrases.get(admin_user) != admin_passphrase:
-            raise MntrServerException("Invalid admin credentials")
-        return admin_user
+        return session
 
     def _credentials_file(self) -> Optional[Path]:
         if self._store_path is None:
@@ -293,32 +347,35 @@ class MntrServer:
 
     @handle_exception
     def api_admin_check(self):
+        ip = flask.request.remote_addr
+        if self._admin_limiter.is_limited(ip):
+            raise MntrRateLimitException()
         body = cast(Dict, flask.request.json)
-        user = body.get("user", "")
-        passphrase = body.get("passphrase", "")
-        if user not in self._client_passphrases:
-            raise MntrServerException("Unknown user")
-        if self._client_passphrases[user] != passphrase:
-            raise MntrServerException("Invalid credentials")
-        return json.dumps({"is_admin": user in self._admin_users})
+        session_id = body.get("session_id", "")
+        session = self._resolve_session(session_id)
+        response = json.dumps({"is_admin": session.user in self._admin_users})
+        return json.dumps({"data": aes_encrypt(response, session.passphrase)})
 
     @handle_exception
     def api_admin_users(self):
         body = cast(Dict, flask.request.json)
-        self._authenticate_admin(body)
+        session = self._authenticate_admin(body)
         with self._lock:
             users = [
                 {"user": u, "is_admin": u in self._admin_users}
                 for u in sorted(self._client_passphrases.keys())
             ]
-        return json.dumps({"users": users})
+        response = json.dumps({"users": users})
+        return json.dumps({"data": aes_encrypt(response, session.passphrase)})
 
     @handle_exception
     def api_admin_add_user(self):
         body = cast(Dict, flask.request.json)
-        self._authenticate_admin(body)
-        new_user = body.get("new_user", "").strip()
-        new_passphrase = body.get("new_passphrase", "")
+        session = self._authenticate_admin(body)
+        payload_json = aes_decrypt(body.get("payload", ""), session.passphrase)
+        payload = json.loads(payload_json)
+        new_user = payload.get("new_user", "").strip()
+        new_passphrase = payload.get("new_passphrase", "")
         if not new_user or not new_passphrase:
             raise MntrServerException("Username and passphrase are required")
         if new_user.startswith("_"):
@@ -328,14 +385,17 @@ class MntrServer:
                 raise MntrServerException("User already exists")
             self._client_passphrases[new_user] = new_passphrase
             self._save_credentials()
-        return json.dumps({"status": "ok"})
+        response = json.dumps({"status": "ok"})
+        return json.dumps({"data": aes_encrypt(response, session.passphrase)})
 
     @handle_exception
     def api_admin_remove_user(self):
         body = cast(Dict, flask.request.json)
-        admin_user = self._authenticate_admin(body)
-        target_user = body.get("target_user", "")
-        if target_user == admin_user:
+        session = self._authenticate_admin(body)
+        payload_json = aes_decrypt(body.get("payload", ""), session.passphrase)
+        payload = json.loads(payload_json)
+        target_user = payload.get("target_user", "")
+        if target_user == session.user:
             raise MntrServerException("Cannot remove yourself")
         with self._lock:
             if target_user not in self._client_passphrases:
@@ -343,7 +403,8 @@ class MntrServer:
             del self._client_passphrases[target_user]
             self._admin_users.discard(target_user)
             self._save_credentials()
-        return json.dumps({"status": "ok"})
+        response = json.dumps({"status": "ok"})
+        return json.dumps({"data": aes_encrypt(response, session.passphrase)})
 
 
 class MntrServerException(Exception):

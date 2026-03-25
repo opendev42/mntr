@@ -55,13 +55,16 @@ class AbstractRunner(metaclass=ABCMeta):
         server: UrlStr,
         name: str,
         passphrase: str,
+        session_id: str | None = None,
     ):
         self.__server = server
         self.__channel = channel
         self.__publisher = publisher
         self.__logger = logging.getLogger(f"AbstractRunner.{self.__channel}")
         self.__stopped = Value(c_int)
-        self.__client = PublisherClient(server, name, passphrase)
+        self.__client = PublisherClient(
+            server, name, passphrase, session_id=session_id
+        )
 
     def run(self):
         while not self.__stopped.value:
@@ -102,8 +105,8 @@ class AbstractRunner(metaclass=ABCMeta):
 
 
 class ProcessRunner(AbstractRunner, Process):
-    def __init__(self, channel, publisher, server, name, passphrase, **kwargs):
-        AbstractRunner.__init__(self, channel, publisher, server, name, passphrase)
+    def __init__(self, channel, publisher, server, name, passphrase, session_id=None, **kwargs):
+        AbstractRunner.__init__(self, channel, publisher, server, name, passphrase, session_id=session_id)
         Process.__init__(self, **kwargs)
 
     def join(self):
@@ -128,6 +131,11 @@ def main():
 
     config = yaml.load(open(args.config), Loader=yaml.Loader)
 
+    # Authenticate once and share the session across all runners
+    auth_client = PublisherClient(args.server, args.name, args.passphrase)
+    auth_client.authenticate()
+    session_id = auth_client._session_id
+
     publishers = {}
 
     for channel, monitor_config in config.items():
@@ -138,11 +146,13 @@ def main():
 
         if args.single:
             publisher = LocalRunner(
-                channel, monitor, args.server, args.name, args.passphrase
+                channel, monitor, args.server, args.name, args.passphrase,
+                session_id=session_id,
             )
         else:
             publisher = ProcessRunner(
-                channel, monitor, args.server, args.name, args.passphrase
+                channel, monitor, args.server, args.name, args.passphrase,
+                session_id=session_id,
             )
 
         publishers[channel] = publisher

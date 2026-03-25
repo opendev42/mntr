@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { aesDecrypt } from "./encryption";
+import { aesEncrypt, aesEncryptUrlSafe, aesDecrypt } from "./encryption";
 
 const API_URL = process.env.REACT_APP_API_URL || "";
 
@@ -10,28 +10,45 @@ var CHANNELS = [];
 var CHANNELS_CALLBACK = {};
 var HEARTBEAT_CALLBACK = null;
 
+var SESSION_ID = null;
+var PASSPHRASE = null;
+
 const initServerStream = () => {
   if (SERVER_STREAM !== null) {
     return;
   }
 
-  SERVER_STREAM = new EventSource(`${API_URL}/server`);
+  if (SESSION_ID === null || PASSPHRASE === null) {
+    return;
+  }
+
+  SERVER_STREAM = new EventSource(
+    `${API_URL}/server/${SESSION_ID}`,
+  );
 
   SERVER_STREAM.onmessage = (e) => {
     const response = JSON.parse(e.data);
     if (response.type === "channels") {
-      CHANNELS = response.data;
+      try {
+        CHANNELS = JSON.parse(aesDecrypt(response.data, PASSPHRASE));
+      } catch {
+        CHANNELS = [];
+      }
       Object.values(CHANNELS_CALLBACK).forEach((c) => {
         c(CHANNELS);
       });
     }
 
     if (response.type === "heartbeat" && HEARTBEAT_CALLBACK !== null) {
-      HEARTBEAT_CALLBACK(response.data);
+      try {
+        HEARTBEAT_CALLBACK(JSON.parse(aesDecrypt(response.data, PASSPHRASE)));
+      } catch {
+        // ignore decryption errors on heartbeat
+      }
     }
   };
 
-  SERVER_STREAM.onerror = (e) => {
+  SERVER_STREAM.onerror = () => {
     SERVER_STREAM.close();
     SERVER_STREAM = null;
     setTimeout(() => {
@@ -69,44 +86,67 @@ const updateStream = (user, passphrase) => {
     CHANNEL_STREAM.close();
   }
 
-  const channels = Object.values(SUBSCRIPTIONS)
-    .map((x) => x.channel)
-    .join(",");
+  const channels = Object.values(SUBSCRIPTIONS).map((x) => x.channel);
 
-  if (channels === "") {
+  if (channels.length === 0) {
     return;
   }
 
+  const encryptedChannels = aesEncryptUrlSafe(
+    JSON.stringify(channels),
+    passphrase,
+  );
+
   CHANNEL_STREAM = new EventSource(
-    `${API_URL}/subscribe/${user}/${channels}`,
+    `${API_URL}/subscribe/${SESSION_ID}/${encryptedChannels}`,
     {},
   );
 
   CHANNEL_STREAM.onmessage = (e) => {
     const raw = JSON.parse(e.data);
 
-    var content;
-
+    var decrypted;
     try {
-      content = JSON.parse(aesDecrypt(raw.data.content, passphrase));
-    } catch (error) {
-      content = {
-        display_type: "error",
-        data: { message: "Error in decryption" },
+      decrypted = JSON.parse(aesDecrypt(raw.data, passphrase));
+    } catch {
+      decrypted = {
+        channel: "unknown",
+        content: { display_type: "error", data: { message: "Error in decryption" } },
+        timestamp: null,
+        publisher: null,
       };
     }
 
     Object.values(SUBSCRIPTIONS).forEach((s) => {
-      if (s.channel === raw.channel) {
-        s.callback({ ...raw.data, content });
+      if (s.channel === decrypted.channel) {
+        s.callback({
+          content: decrypted.content,
+          timestamp: decrypted.timestamp,
+          publisher: decrypted.publisher,
+        });
       }
     });
   };
 };
 
+const generateNonce = () => {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+};
+
 const validateUser = (user, passphrase) => {
   return new Promise((resolve, reject) => {
-    fetch(`${API_URL}/validate/${user}`)
+    const nonce = generateNonce();
+    const encryptedNonce = aesEncrypt(
+      JSON.stringify({ nonce }),
+      passphrase,
+    );
+
+    fetch(`${API_URL}/validate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: encryptedNonce }),
+    })
       .then((response) => {
         if (response.ok) {
           response.json().then((e) => {
@@ -118,7 +158,11 @@ const validateUser = (user, passphrase) => {
               return;
             }
             if (decrypted.subscriber === user) {
-              resolve();
+              SESSION_ID = decrypted.session_id;
+              PASSPHRASE = passphrase;
+              resolve(decrypted.session_id);
+            } else {
+              reject("Invalid user/passphrase");
             }
           });
         } else {
@@ -127,64 +171,69 @@ const validateUser = (user, passphrase) => {
           });
         }
       })
-      .catch((e) => {
+      .catch(() => {
         reject("Request failed");
       });
   });
 };
 
-const checkAdmin = (user, passphrase) => {
+const checkAdmin = (sessionId, passphrase) => {
   return fetch(`${API_URL}/admin/check`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user, passphrase }),
+    body: JSON.stringify({ session_id: sessionId }),
   })
     .then((r) => {
       if (!r.ok) return { is_admin: false };
-      return r.json();
+      return r.json().then((e) => {
+        try {
+          return JSON.parse(aesDecrypt(e.data, passphrase));
+        } catch {
+          return { is_admin: false };
+        }
+      });
     })
     .catch(() => ({ is_admin: false }));
 };
 
-const adminListUsers = (adminUser, adminPassphrase) => {
+const adminListUsers = (sessionId, passphrase) => {
   return fetch(`${API_URL}/admin/users`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ admin_user: adminUser, admin_passphrase: adminPassphrase }),
+    body: JSON.stringify({ session_id: sessionId }),
   }).then((r) => {
     if (!r.ok) return r.text().then((t) => Promise.reject(t));
-    return r.json();
+    return r.json().then((e) => JSON.parse(aesDecrypt(e.data, passphrase)));
   });
 };
 
-const adminAddUser = (adminUser, adminPassphrase, newUser, newPassphrase) => {
+const adminAddUser = (sessionId, passphrase, newUser, newPassphrase) => {
+  const payload = aesEncrypt(
+    JSON.stringify({ new_user: newUser, new_passphrase: newPassphrase }),
+    passphrase,
+  );
   return fetch(`${API_URL}/admin/add_user`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      admin_user: adminUser,
-      admin_passphrase: adminPassphrase,
-      new_user: newUser,
-      new_passphrase: newPassphrase,
-    }),
+    body: JSON.stringify({ session_id: sessionId, payload }),
   }).then((r) => {
     if (!r.ok) return r.text().then((t) => Promise.reject(t));
-    return r.json();
+    return r.json().then((e) => JSON.parse(aesDecrypt(e.data, passphrase)));
   });
 };
 
-const adminRemoveUser = (adminUser, adminPassphrase, targetUser) => {
+const adminRemoveUser = (sessionId, passphrase, targetUser) => {
+  const payload = aesEncrypt(
+    JSON.stringify({ target_user: targetUser }),
+    passphrase,
+  );
   return fetch(`${API_URL}/admin/remove_user`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      admin_user: adminUser,
-      admin_passphrase: adminPassphrase,
-      target_user: targetUser,
-    }),
+    body: JSON.stringify({ session_id: sessionId, payload }),
   }).then((r) => {
     if (!r.ok) return r.text().then((t) => Promise.reject(t));
-    return r.json();
+    return r.json().then((e) => JSON.parse(aesDecrypt(e.data, passphrase)));
   });
 };
 

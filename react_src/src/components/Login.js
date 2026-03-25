@@ -35,8 +35,8 @@ const Login = ({ children }) => {
   React.useEffect(() => {
     if (!validated && credentials !== null) {
       validateUser(credentials.user, credentials.passphrase)
-        .then(() =>
-          checkAdmin(credentials.user, credentials.passphrase).then((res) => {
+        .then((sessionId) =>
+          checkAdmin(sessionId, credentials.passphrase).then((res) => {
             dispatch(
               setCredentials({
                 credentials: {
@@ -44,6 +44,7 @@ const Login = ({ children }) => {
                   passphrase: credentials.passphrase,
                 },
                 isAdmin: res.is_admin,
+                sessionId,
               }),
             );
             setValidating(false);
@@ -144,8 +145,8 @@ const Login = ({ children }) => {
                       setError(null);
                       setValidating(true);
                       validateUser(userInput, passphraseInput)
-                        .then(() =>
-                          checkAdmin(userInput, passphraseInput).then((res) => {
+                        .then((sessionId) =>
+                          checkAdmin(sessionId, passphraseInput).then((res) => {
                             dispatch(
                               setCredentials({
                                 credentials: {
@@ -153,6 +154,7 @@ const Login = ({ children }) => {
                                   passphrase: passphraseInput,
                                 },
                                 isAdmin: res.is_admin,
+                                sessionId,
                               }),
                             );
                             setValidating(false);

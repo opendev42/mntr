@@ -10,6 +10,27 @@ const _KEY_LEN = 32;
 const _deriveKey = (passphrase, salt) =>
   pbkdf2(sha256, passphrase, salt, { c: _ITERATIONS, dkLen: _KEY_LEN });
 
+const aesEncrypt = (plaintext, passphrase) => {
+  const salt = crypto.getRandomValues(new Uint8Array(_SALT_LEN));
+  const nonce = crypto.getRandomValues(new Uint8Array(_NONCE_LEN));
+  const key = _deriveKey(new TextEncoder().encode(passphrase), salt);
+  const ciphertext = gcm(key, nonce).encrypt(
+    new TextEncoder().encode(plaintext),
+  );
+  const result = new Uint8Array(salt.length + nonce.length + ciphertext.length);
+  result.set(salt, 0);
+  result.set(nonce, _SALT_LEN);
+  result.set(ciphertext, _SALT_LEN + _NONCE_LEN);
+  return btoa(String.fromCharCode(...result));
+};
+
+const aesEncryptUrlSafe = (plaintext, passphrase) => {
+  return aesEncrypt(plaintext, passphrase)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+};
+
 const aesDecrypt = (ciphertext, passphrase) => {
   const raw = Uint8Array.from(atob(ciphertext), (c) => c.charCodeAt(0));
   const salt = raw.slice(0, _SALT_LEN);
@@ -20,4 +41,4 @@ const aesDecrypt = (ciphertext, passphrase) => {
   return new TextDecoder().decode(plaintext);
 };
 
-export { aesDecrypt };
+export { aesEncrypt, aesEncryptUrlSafe, aesDecrypt };

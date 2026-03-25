@@ -43,6 +43,9 @@ PYTHONPATH=. venv/bin/python -m mntr.server \
 | `--client_passphrases` | *(required)* | Path to a YAML file mapping `CLIENT_NAME: PASSPHRASE` for each authorised client. |
 | `--store_path` | *(none)* | Directory to persist server state. If omitted, state is not saved across restarts. If a path with existing state is provided, the server resumes from it. |
 | `--debug` | `false` | Enables open CORS (required for browser access across origins) and a `debug` user with password `debug`. Do not use in production. |
+| `--session_ttl` | `86400` | Session time-to-live in seconds. After this period, clients must re-authenticate. |
+| `--rate_limit` | `10` | Max validation attempts per IP within the rate limit window. |
+| `--rate_limit_window` | `60` | Rate limit window in seconds. |
 
 ### Passphrases file format
 
@@ -158,18 +161,42 @@ The dashboard updates in real time via Server-Sent Events.
 
 ## Encryption
 
-Because `mntr` is typically used in environments without HTTPS, all published
-data is encrypted in transit. The encryption scheme is:
+Because `mntr` is designed for environments without HTTPS, **all data** is
+encrypted in transit using the existing shared passphrases. No plaintext
+usernames, channel names, or credentials are ever sent over the wire.
 
 - **Algorithm:** AES-256-GCM (authenticated encryption)
 - **Key derivation:** PBKDF2-HMAC-SHA256 with 10,000 iterations and a random 16-byte salt
 - **Nonce:** 12 bytes, randomly generated per message
 
-The flow for a published message is:
+### Session-based encrypted protocol
 
-1. The publisher encrypts the payload with its passphrase and sends it to the server.
-2. The server decrypts the payload (verifying the GCM authentication tag), then
-   re-encrypts it with the subscribing client's passphrase before forwarding.
-3. The web client decrypts the message with its passphrase in the browser.
+All communication uses a session-based protocol where every request and response
+body is encrypted:
 
-Metadata (channel names, publisher names, timestamps) is not encrypted.
+1. **Authentication:** The client encrypts a nonce with its passphrase and sends
+   it to `POST /validate`. The server tries all known passphrases to decrypt --
+   GCM's authentication tag rejects wrong keys, so only the correct passphrase
+   succeeds, identifying the user without any plaintext username. The server
+   returns an encrypted response containing a session ID.
+2. **Subsequent requests:** The client includes the session ID (an opaque random
+   token) in requests. The server uses it to look up the passphrase and decrypt
+   request payloads. Response bodies are also encrypted.
+3. **Publishing:** The publisher encrypts the full payload (channel name, data,
+   encoding) with its passphrase. The server decrypts and re-encrypts with each
+   subscriber's passphrase before forwarding.
+4. **SSE streams:** Channel subscriptions and heartbeat events are fully
+   encrypted. Channel lists in subscribe URLs are encrypted with URL-safe
+   base64 encoding.
+5. **Admin operations:** All admin endpoints use session-based authentication
+   with encrypted request and response bodies.
+
+### What is visible to a network observer
+
+| Visible | Not visible |
+|---|---|
+| Session ID (opaque random token) | Usernames |
+| Request/response sizes and timing | Channel names |
+| SSE framing (`data: ...\n\n`) | Passphrases or credentials |
+| HTTP method and path structure | Published data content |
+| | Timestamps, publisher names |

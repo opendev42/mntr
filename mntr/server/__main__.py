@@ -26,6 +26,7 @@ def main():
         admin_users=admin_users,
         rate_limit=args.rate_limit,
         rate_limit_window=args.rate_limit_window,
+        session_ttl=args.session_ttl,
     )
     app = server.get_app(static_folder=Path(__file__).parent.parent / "web")
     app.run(args.address, port=args.port)
@@ -74,6 +75,12 @@ def parse_args():
         type=float,
         default=60.0,
         help="Rate limit window in seconds (default: 60).",
+    )
+    parser.add_argument(
+        "--session_ttl",
+        type=float,
+        default=86400.0,
+        help="Session time-to-live in seconds (default: 86400 = 24h).",
     )
 
     return parser.parse_args()

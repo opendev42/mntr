@@ -21,6 +21,7 @@ import { adminListUsers, adminAddUser, adminRemoveUser } from "../../util/connec
 
 const AdminDialog = ({ open, setOpen }) => {
   const credentials = useSelector((state) => state.credentials.credentials);
+  const sessionId = useSelector((state) => state.credentials.sessionId);
 
   const [users, setUsers] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
@@ -31,16 +32,16 @@ const AdminDialog = ({ open, setOpen }) => {
   const [confirmDelete, setConfirmDelete] = React.useState(null);
 
   const fetchUsers = React.useCallback(() => {
-    if (!credentials) return;
+    if (!credentials || !sessionId) return;
     setLoading(true);
-    adminListUsers(credentials.user, credentials.passphrase)
+    adminListUsers(sessionId, credentials.passphrase)
       .then((data) => {
         setUsers(data.users);
         setError(null);
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [credentials]);
+  }, [credentials, sessionId]);
 
   React.useEffect(() => {
     if (open) {
@@ -60,7 +61,7 @@ const AdminDialog = ({ open, setOpen }) => {
     }
     setError(null);
     setSuccess(null);
-    adminAddUser(credentials.user, credentials.passphrase, newUser.trim(), newPassphrase)
+    adminAddUser(sessionId, credentials.passphrase, newUser.trim(), newPassphrase)
       .then(() => {
         setSuccess(`User "${newUser.trim()}" added`);
         setNewUser("");
@@ -73,7 +74,7 @@ const AdminDialog = ({ open, setOpen }) => {
   const handleRemove = (targetUser) => {
     setError(null);
     setSuccess(null);
-    adminRemoveUser(credentials.user, credentials.passphrase, targetUser)
+    adminRemoveUser(sessionId, credentials.passphrase, targetUser)
       .then(() => {
         setSuccess(`User "${targetUser}" removed`);
         setConfirmDelete(null);

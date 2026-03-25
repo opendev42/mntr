@@ -13,7 +13,7 @@ import TextField from "@mui/material/TextField";
 import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
 import { validateUser, checkAdmin } from "../util/connection";
-import { setCredentials, removeCredentials } from "../state/credentialsSlice";
+import { setCredentials } from "../state/credentialsSlice";
 import { setStayLoggedIn, getStayLoggedIn } from "../state/credentialStorage";
 
 const Login = ({ children }) => {
@@ -26,6 +26,7 @@ const Login = ({ children }) => {
   const [error, setError] = React.useState(null);
   const [validating, setValidating] = React.useState(false);
   const [validated, setValidated] = React.useState(false);
+  const [needsLogin, setNeedsLogin] = React.useState(false);
 
   const handleStayLoggedInChange = (e) => {
     setStayLoggedIn(e.target.checked);
@@ -57,6 +58,7 @@ const Login = ({ children }) => {
           );
           setValidating(false);
           setValidated(true);
+          setNeedsLogin(false);
           setUserInput("");
           setPassphraseInput("");
         }),
@@ -90,12 +92,13 @@ const Login = ({ children }) => {
             );
             setValidating(false);
             setValidated(true);
+            setNeedsLogin(false);
           }),
         )
         .catch((e) => {
           setUserInput(credentials.user);
           setPassphraseInput(credentials.passphrase);
-          dispatch(removeCredentials());
+          setNeedsLogin(true);
           setError(e);
           setValidating(false);
         });
@@ -104,8 +107,8 @@ const Login = ({ children }) => {
 
   return (
     <>
-      {credentials !== null && children}
-      {credentials === null && (
+      {credentials !== null && !needsLogin && children}
+      {(credentials === null || needsLogin) && (
         <>
           <Dialog
             open={true}

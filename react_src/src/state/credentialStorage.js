@@ -19,10 +19,11 @@ const credentialStorage = {
     return Promise.resolve(null);
   },
   setItem: (key, value) => {
+    sessionStorage.setItem(key, value);
     if (getStayLoggedIn()) {
       localStorage.setItem(key, value);
     } else {
-      sessionStorage.setItem(key, value);
+      localStorage.removeItem(key);
     }
     return Promise.resolve();
   },

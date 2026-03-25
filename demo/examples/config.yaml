@@ -1,107 +1,86 @@
-# This is an example of using yaml to configure publishers that can be run by
-# the interval publisher (`mntr.publisher.interval_publisher`)
-
-# Each entry in the dictionary is keyed by the channel name .
-# The values should contain
-# - class: the fully qualified path to the class that generates the data.
-# - params: dictionary of keyword arguments to parameterise the publisher.
+# Demo config: simulates an infrastructure monitoring dashboard
 #
-# See `examples.example_publishers` for more.
+# Run with:
+#   PYTHONPATH=demo python -m mntr.publisher.interval_publisher \
+#     -c demo/examples/config.yaml --server http://localhost:5100 \
+#     --name client0 --passphrase demo/passphrases/client0.txt
 
-lipsum: &LIPSUM
-  class: examples.example_publishers.PlaintextLoremIpsumPublisher
+system-logs: &LOGS
+  class: examples.example_publishers.SystemLogPublisher
   params:
-    num_sentences: 25
+    interval: 3
 
-lipsum_html: &LIPSUM_HTML
-  class: examples.example_publishers.HtmlLoremIpsumPublisher
+service-status: &STATUS
+  class: examples.example_publishers.ServiceStatusPublisher
   params:
-    num_sentences: 25
+    interval: 4
 
-error:
-  class: examples.example_publishers.ErrorPublisher
-
-table: &TABLE
-  class: examples.example_publishers.TablePublisher
+request-latency: &LATENCY
+  class: examples.example_publishers.RequestLatencyPublisher
   params:
-    num_columns: 5
-    min_rows: 5
-    max_rows: 250
+    interval: 2
 
-pandas_table:
-  class: examples.example_publishers.PandasTablePublisher
+error-rate:
+  class: examples.example_publishers.ErrorRatePublisher
   params:
-    num_rows: 250
+    interval: 2.5
 
-linechart: &LINE
-  class: examples.example_publishers.LineChartPublisher
+traffic-by-endpoint:
+  class: examples.example_publishers.TrafficByEndpointPublisher
   params:
-    interval: 1.9
-    num_labels: 4
-    num_datasets: 3
+    interval: 3
 
-scatterchart:
-  class: examples.example_publishers.ScatterChartPublisher
+resource-usage:
+  class: examples.example_publishers.ResourceUsagePublisher
   params:
-    interval: 2.2
-    num_lines: 4
-    min_observations: 10
-    max_observations: 30
+    interval: 3
 
-radarchart:
-  class: examples.example_publishers.RadarChartPublisher
+status-codes:
+  class: examples.example_publishers.StatusCodeDistPublisher
   params:
-    interval: 1.7
-    num_labels: 4
-    num_datasets: 3
+    interval: 4
 
-barchart:
-  class: examples.example_publishers.BarChartPublisher
+latency-distribution:
+  class: examples.example_publishers.LatencyDistributionPublisher
   params:
-    interval: 1.4
-    num_labels: 8
-    num_datasets: 3
+    interval: 5
 
-piechart:
-  class: examples.example_publishers.PieChartPublisher
+request-log:
+  class: examples.example_publishers.RequestLogPublisher
   params:
-    interval: 2.6
-    num_labels: 5
-    num_datasets: 1
+    interval: 2
 
-image:
-  class: examples.example_publishers.ImagePublisher
+deploy-status: &DEPLOY
+  class: examples.example_publishers.DeployStatusPublisher
   params:
-    interval: 2.6
-    num_labels: 5
-    num_datasets: 1
+    interval: 5
 
-alert_error: &ALERT_ERROR
+alert-error: &ALERT_ERROR
   class: examples.example_publishers.AlertPublisher
   params:
     alert_severity: error
 
-alert_warning:
+alert-warning:
   class: examples.example_publishers.AlertPublisher
   params:
     alert_severity: warning
 
-alert_info:
+alert-info:
   class: examples.example_publishers.AlertPublisher
   params:
     alert_severity: info
 
-alert_success:
+alert-success:
   class: examples.example_publishers.AlertPublisher
   params:
     alert_severity: success
 
-multi:
-  class: examples.example_publishers.MultiPagePublisher
+overview:
+  class: examples.example_publishers.DashboardPublisher
   params:
     monitors:
-      lipsum: *LIPSUM
-      lipsum_html: *LIPSUM_HTML
-      table: *TABLE
-      alert: *ALERT_ERROR
-      line: *LINE
+      logs: *LOGS
+      services: *STATUS
+      latency: *LATENCY
+      deploy: *DEPLOY
+      alerts: *ALERT_ERROR

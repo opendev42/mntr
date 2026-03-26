@@ -106,6 +106,43 @@ class TestPublish:
         )
         server.publish(session, payload)
 
+    def test_publish_with_ttl(self, server):
+        session_id = server._create_session("alice")
+        session = server._resolve_session(session_id)
+
+        payload = aes_encrypt(
+            json.dumps({
+                "channel": "ttl-chan",
+                "data": {"display_type": "plaintext", "data": {"text": "temp"}},
+                "encoding": "utf8",
+                "ttl": 30.0,
+            }),
+            "alice-pass",
+        )
+        server.publish(session, payload)
+        cd = server._state._get_channel_data("ttl-chan")
+        assert cd is not None
+        assert cd.ttl == 30.0
+        assert cd.expires_at is not None
+
+    def test_publish_without_ttl_backward_compatible(self, server):
+        session_id = server._create_session("alice")
+        session = server._resolve_session(session_id)
+
+        payload = aes_encrypt(
+            json.dumps({
+                "channel": "perm-chan",
+                "data": {"display_type": "plaintext", "data": {"text": "permanent"}},
+                "encoding": "utf8",
+            }),
+            "alice-pass",
+        )
+        server.publish(session, payload)
+        cd = server._state._get_channel_data("perm-chan")
+        assert cd is not None
+        assert cd.ttl is None
+        assert cd.expires_at is None
+
     def test_publish_rejects_bad_decryption(self, server):
         session_id = server._create_session("alice")
         session = server._resolve_session(session_id)
@@ -113,3 +150,34 @@ class TestPublish:
         bad_payload = aes_encrypt("garbage", "wrong-pass")
         with pytest.raises(MntrServerException, match="Invalid decryption"):
             server.publish(session, bad_payload)
+
+
+class TestAdminDeleteChannel:
+    def test_admin_can_delete_channel(self, server):
+        session_id = server._create_session("alice")
+        session = server._resolve_session(session_id)
+
+        pub_payload = aes_encrypt(
+            json.dumps({
+                "channel": "del-chan",
+                "data": {"display_type": "plaintext", "data": {"text": "bye"}},
+                "encoding": "utf8",
+            }),
+            "alice-pass",
+        )
+        server.publish(session, pub_payload)
+        assert server._state._get_channel_data("del-chan") is not None
+
+        server._state.remove_channel("del-chan")
+        assert server._state._get_channel_data("del-chan") is None
+
+    def test_non_admin_cannot_delete_channel(self, server):
+        session_id = server._create_session("bob")
+        body = {
+            "session_id": session_id,
+            "payload": aes_encrypt(
+                json.dumps({"channel": "test-chan"}), "bob-pass"
+            ),
+        }
+        with pytest.raises(MntrServerException, match="Not an admin"):
+            server._authenticate_admin(body)

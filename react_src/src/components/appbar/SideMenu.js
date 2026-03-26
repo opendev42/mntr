@@ -16,6 +16,7 @@ import MenuIcon from "@mui/icons-material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Typography from "@mui/material/Typography";
 import PeopleIcon from "@mui/icons-material/People";
+import DnsIcon from "@mui/icons-material/Dns";
 import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
 import ComputerIcon from '@mui/icons-material/Computer';
 import DarkModeIcon from '@mui/icons-material/DarkMode';
@@ -23,6 +24,7 @@ import LightModeIcon from '@mui/icons-material/LightMode';
 
 import AppBarButton from "./AppBarButton";
 import AdminDialog from "./AdminDialog";
+import ChannelDialog from "./ChannelDialog";
 
 import { updateWindows } from "../../state/panelSlice";
 import { removeCredentials } from "../../state/credentialsSlice";
@@ -45,6 +47,7 @@ const SideMenu = () => {
   const [helpDialogOpen, setHelpDialogOpen] = React.useState(false);
   const [logoutDialogOpen, setLogoutDialogOpen] = React.useState(false);
   const [adminDialogOpen, setAdminDialogOpen] = React.useState(false);
+  const [channelDialogOpen, setChannelDialogOpen] = React.useState(false);
 
   return (
     <>
@@ -111,6 +114,15 @@ const SideMenu = () => {
           />
         )}
 
+        {isAdmin && (
+          <SideMenuItem
+            title="Manage Channels"
+            icon={<DnsIcon />}
+            onClick={() => setChannelDialogOpen(true)}
+            closeMenu={() => setShowMenu(false)}
+          />
+        )}
+
         <SideMenuItem
           title={isDark ? "Light Mode" : "Dark Mode"}
           icon={isDark ? <LightModeIcon /> : <DarkModeIcon />}
@@ -128,6 +140,7 @@ const SideMenu = () => {
       <HelpDialog open={helpDialogOpen} setOpen={setHelpDialogOpen} />
       <LogoutDialog open={logoutDialogOpen} setOpen={setLogoutDialogOpen} />
       {isAdmin && <AdminDialog open={adminDialogOpen} setOpen={setAdminDialogOpen} />}
+      {isAdmin && <ChannelDialog open={channelDialogOpen} setOpen={setChannelDialogOpen} />}
       <input
         type="file"
         id="file"

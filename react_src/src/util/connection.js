@@ -238,6 +238,21 @@ const adminRemoveUser = (sessionId, passphrase, targetUser) => {
   });
 };
 
+const adminDeleteChannel = (sessionId, passphrase, channel) => {
+  const payload = aesEncrypt(
+    JSON.stringify({ channel }),
+    passphrase,
+  );
+  return fetch(`${API_URL}/admin/delete_channel`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId, payload }),
+  }).then((r) => {
+    if (!r.ok) return r.text().then((t) => Promise.reject(t));
+    return r.json().then((e) => JSON.parse(aesDecrypt(e.data, passphrase)));
+  });
+};
+
 export {
   subscribe,
   listenChannels,
@@ -247,4 +262,5 @@ export {
   adminListUsers,
   adminAddUser,
   adminRemoveUser,
+  adminDeleteChannel,
 };

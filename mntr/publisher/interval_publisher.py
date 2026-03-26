@@ -26,6 +26,9 @@ class IntervalPublisher(metaclass=abc.ABCMeta):
     def get_interval(self) -> int:
         return self.params.get("interval", 5)
 
+    def get_ttl(self) -> float | None:
+        return self.params.get("ttl")
+
     @abc.abstractmethod
     def publish(self) -> MonitorData: ...
 
@@ -60,6 +63,7 @@ class AbstractRunner(metaclass=ABCMeta):
         self.__server = server
         self.__channel = channel
         self.__publisher = publisher
+        self.__ttl = publisher.get_ttl()
         self.__logger = logging.getLogger(f"AbstractRunner.{self.__channel}")
         self.__stopped = Value(c_int)
         self.__client = PublisherClient(
@@ -86,6 +90,7 @@ class AbstractRunner(metaclass=ABCMeta):
                 self.__client.publish(
                     channel=self.__channel,
                     channel_data=channel_data,
+                    ttl=self.__ttl,
                 )
             except Exception as e:
                 self.__logger.error(

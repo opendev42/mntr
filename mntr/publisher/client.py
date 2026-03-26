@@ -49,18 +49,19 @@ class PublisherClient:
         channel: str,
         channel_data: MonitorData,
         encoding: str = "utf8",
+        ttl: Optional[float] = None,
     ):
         if self._session_id is None:
             self.authenticate()
 
-        payload = json.dumps(
-            {
-                "channel": channel,
-                "data": channel_data.prepare_json(),
-                "encoding": encoding,
-            },
-            ignore_nan=True,
-        )
+        payload_dict: dict = {
+            "channel": channel,
+            "data": channel_data.prepare_json(),
+            "encoding": encoding,
+        }
+        if ttl is not None:
+            payload_dict["ttl"] = ttl
+        payload = json.dumps(payload_dict, ignore_nan=True)
         encrypted_payload = aes_encrypt(payload, self._passphrase)
 
         response = requests.post(

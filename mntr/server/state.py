@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -11,14 +12,23 @@ LOGGER = logging.getLogger(__name__)
 
 
 class MntrState:
-    def __init__(self, store_path: Optional[Path] = None):
+    def __init__(
+        self,
+        store_path: Optional[Path] = None,
+        reaper_interval: float = 5.0,
+    ):
         self._conditions: Dict[str, Condition] = {}
         self._condition_any = Condition()
         self._condition_lock = Lock()
         self._channel_data: Dict[str, ChannelData] = {}
         self._channel_data_lock = Lock()
         self._store_path = store_path
+        self._reaper_interval = reaper_interval
         self.init_from_store()
+        self._reaper_thread = threading.Thread(
+            target=self._reap_expired, daemon=True
+        )
+        self._reaper_thread.start()
 
     def init_from_store(self) -> None:
         if self._store_path is None:
@@ -35,6 +45,16 @@ class MntrState:
                 with open(fn, "r", encoding="utf-8") as f:
                     data = json.load(f)
                 channel_data = ChannelData(**data)
+                if (
+                    channel_data.expires_at is not None
+                    and time.time() > channel_data.expires_at
+                ):
+                    LOGGER.info("Skipping expired channel from store: %s", fn.stem)
+                    try:
+                        os.remove(fn)
+                    except OSError:
+                        pass
+                    continue
                 channel = fn.stem.split("-", 1)[1]
                 self.update(channel, channel_data, store=False)
             except Exception as e:
@@ -45,8 +65,12 @@ class MntrState:
         last_heartbeat: float = 0
 
         while True:
-            channels = list(self._channel_data)
             now = time.time()
+            channels = [
+                ch
+                for ch, cd in self._channel_data.items()
+                if cd.expires_at is None or now <= cd.expires_at
+            ]
 
             if channels != last_channels:
                 last_channels = channels.copy()
@@ -88,7 +112,13 @@ class MntrState:
 
             self._wait()
 
-    def publish(self, channel: str, content: Dict, publisher: str) -> None:
+    def publish(
+        self,
+        channel: str,
+        content: Dict,
+        publisher: str,
+        ttl: Optional[float] = None,
+    ) -> None:
         with self._channel_data_lock:
             try:
                 last_seqno = self._channel_data[channel].seqno
@@ -96,13 +126,17 @@ class MntrState:
                 last_seqno = 0
 
             seqno = (last_seqno + 1) % 1_000_000_000
+            now = time.time()
+            expires_at = (now + ttl) if ttl is not None else None
 
             channel_data = ChannelData(
                 channel=channel,
                 content=content,
-                timestamp=time.time(),
+                timestamp=now,
                 seqno=seqno,
                 publisher=publisher,
+                ttl=ttl,
+                expires_at=expires_at,
             )
             self.update(channel, channel_data)
             LOGGER.info(f"{channel} updated - seqno: {seqno}")
@@ -134,8 +168,32 @@ class MntrState:
                 except Exception as cleanup_err:
                     LOGGER.warning("Failed to remove temp file %s: %s", tmp, cleanup_err)
 
+    def remove_channel(self, channel: str) -> None:
+        with self._channel_data_lock:
+            if channel not in self._channel_data:
+                return
+            del self._channel_data[channel]
+
+        if self._store_path is not None:
+            dest = self._store_path / f"channel-{channel}.json"
+            try:
+                os.remove(dest)
+            except OSError:
+                pass
+
+        with self._condition_any:
+            self._condition_any.notify_all()
+
     def _get_channel_data(self, channel):
-        return self._channel_data.get(channel)
+        data = self._channel_data.get(channel)
+        if (
+            data is not None
+            and data.expires_at is not None
+            and time.time() > data.expires_at
+        ):
+            self.remove_channel(channel)
+            return None
+        return data
 
     def _get_condition(self, channel):
         if channel in self._conditions:
@@ -145,6 +203,20 @@ class MntrState:
             if channel not in self._conditions:
                 self._conditions[channel] = Condition()
             return self._conditions[channel]
+
+    def _reap_expired(self) -> None:
+        while True:
+            now = time.time()
+            expired = []
+            with self._channel_data_lock:
+                for channel, cd in self._channel_data.items():
+                    if cd.expires_at is not None and now > cd.expires_at:
+                        expired.append(channel)
+            for channel in expired:
+                LOGGER.info("TTL expired for channel: %s", channel)
+                self.remove_channel(channel)
+            with self._condition_any:
+                self._condition_any.wait(timeout=self._reaper_interval)
 
     def _wait(self, channel=None, timeout=None):
         if channel is not None:
@@ -162,3 +234,5 @@ class ChannelData(NamedTuple):
     content: Dict[str, Any]
     seqno: int
     publisher: str
+    ttl: Optional[float] = None
+    expires_at: Optional[float] = None

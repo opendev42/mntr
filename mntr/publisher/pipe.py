@@ -27,7 +27,7 @@ def main():
     else:
         raise ValueError(f"Unknown type: {args.type}")
 
-    client.publish(args.channel, data)
+    client.publish(args.channel, data, ttl=args.ttl)
 
 
 def parse_args():
@@ -61,6 +61,12 @@ def parse_args():
         type=Path,
         required=True,
         help="Path to file containing passphrase",
+    )
+    parser.add_argument(
+        "--ttl",
+        type=float,
+        default=None,
+        help="Time-to-live in seconds. Channel data expires after this duration.",
     )
     return parser.parse_args()
 

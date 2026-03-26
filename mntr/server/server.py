@@ -163,7 +163,8 @@ class MntrServer:
         _validate_name(channel, "channel")
 
         channel_data = payload.get("data", {})
-        self._state.publish(channel, channel_data, session.user)
+        ttl = payload.get("ttl")
+        self._state.publish(channel, channel_data, session.user, ttl=ttl)
 
     def validate(self, encrypted_message: str) -> Dict[str, str]:
         user, passphrase = self._identify_user(encrypted_message)
@@ -238,6 +239,9 @@ class MntrServer:
         app.route("/admin/users", methods=["POST"])(self.api_admin_users)
         app.route("/admin/add_user", methods=["POST"])(self.api_admin_add_user)
         app.route("/admin/remove_user", methods=["POST"])(self.api_admin_remove_user)
+        app.route("/admin/delete_channel", methods=["POST"])(
+            self.api_admin_delete_channel
+        )
 
         if self._debug:
             LOGGER.warning("Debug mode enabled: CORS is open to all origins")
@@ -403,6 +407,19 @@ class MntrServer:
             del self._client_passphrases[target_user]
             self._admin_users.discard(target_user)
             self._save_credentials()
+        response = json.dumps({"status": "ok"})
+        return json.dumps({"data": aes_encrypt(response, session.passphrase)})
+
+
+    @handle_exception
+    def api_admin_delete_channel(self):
+        body = cast(Dict, flask.request.json)
+        session = self._authenticate_admin(body)
+        payload_json = aes_decrypt(body.get("payload", ""), session.passphrase)
+        payload = json.loads(payload_json)
+        channel = payload.get("channel", "")
+        _validate_name(channel, "channel")
+        self._state.remove_channel(channel)
         response = json.dumps({"status": "ok"})
         return json.dumps({"data": aes_encrypt(response, session.passphrase)})
 

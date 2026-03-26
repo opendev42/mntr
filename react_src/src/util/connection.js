@@ -160,6 +160,7 @@ const validateUser = (user, passphrase) => {
             if (decrypted.subscriber === user) {
               SESSION_ID = decrypted.session_id;
               PASSPHRASE = passphrase;
+              initServerStream();
               resolve(decrypted.session_id);
             } else {
               reject("Invalid user/passphrase");

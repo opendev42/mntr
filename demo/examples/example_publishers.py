@@ -194,7 +194,10 @@ class ErrorRatePublisher(IntervalPublisher):
                 message=f"Error rate {rate:.1f}% ({errors}/{total} requests)",
             )
 
-        return ChartJSData.scatter(data, alert=alert)
+        result = ChartJSData.scatter(data)
+        if alert is not None:
+            result = result._replace(alert=alert)
+        return result
 
 
 class TrafficByEndpointPublisher(IntervalPublisher):
@@ -369,7 +372,7 @@ class DeployStatusPublisher(IntervalPublisher):
         """
         return HtmlData(
             data={"html": html},
-            alert=Alert(severity=severity, title=title),
+            alert=Alert(severity=severity, title=title, message=f"Build #{build} ({sha})"),
         )
 
 

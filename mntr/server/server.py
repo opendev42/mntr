@@ -79,6 +79,7 @@ class MntrServer:
         debug: bool = False,
         encoding: str = "utf8",
         admin_users: Optional[Set[str]] = None,
+        user_groups: Optional[Dict[str, List[str]]] = None,
         rate_limit: int = 10,
         rate_limit_window: float = 60.0,
         session_ttl: float = 86400.0,
@@ -94,6 +95,9 @@ class MntrServer:
             max_calls=rate_limit, window=rate_limit_window
         )
         self._admin_users = set(admin_users) if admin_users else set()
+        self._user_groups: Dict[str, List[str]] = (
+            dict(user_groups) if user_groups else {}
+        )
         self._store_path = store_path
         self._lock = threading.Lock()
         self._sessions: Dict[str, _Session] = {}
@@ -130,11 +134,43 @@ class MntrServer:
                 continue
         raise MntrServerException("Invalid credentials")
 
+    def _get_user_groups(self, username: str) -> Set[str]:
+        groups = {username}
+        for group_name, members in self._user_groups.items():
+            if username in members:
+                groups.add(group_name)
+        return groups
+
+    def _filter_channels(self, username: str, channels: List[str]) -> List[str]:
+        if username in self._admin_users:
+            return channels
+        user_groups = self._get_user_groups(username)
+        return [
+            ch
+            for ch in channels
+            if (cd := self._state._get_channel_data(ch)) is not None
+            and (not cd.groups or user_groups & set(cd.groups))
+        ]
+
+    def _check_subscribe_permissions(
+        self, username: str, channels: List[str]
+    ) -> None:
+        if username in self._admin_users:
+            return
+        user_groups = self._get_user_groups(username)
+        for ch in channels:
+            cd = self._state._get_channel_data(ch)
+            if cd is not None and cd.groups and not (user_groups & set(cd.groups)):
+                raise MntrServerException(
+                    f"Permission denied for channel: {ch}"
+                )
+
     def heartbeat(
-        self, passphrase: str, interval: float = 1.0
+        self, passphrase: str, username: str, interval: float = 1.0
     ) -> Generator[Dict, None, None]:
         for update in self._state.heartbeat(interval=interval):
             if channels := update.get("channels"):
+                channels = self._filter_channels(username, channels)
                 encrypted = aes_encrypt(
                     json.dumps(channels), passphrase
                 )
@@ -164,7 +200,15 @@ class MntrServer:
 
         channel_data = payload.get("data", {})
         ttl = payload.get("ttl")
-        self._state.publish(channel, channel_data, session.user, ttl=ttl)
+        groups = payload.get("groups")
+        if groups is not None:
+            if not isinstance(groups, list):
+                raise MntrServerException("groups must be a list")
+            for g in groups:
+                _validate_name(g, "group")
+        self._state.publish(
+            channel, channel_data, session.user, ttl=ttl, groups=groups
+        )
 
     def validate(self, encrypted_message: str) -> Dict[str, str]:
         user, passphrase = self._identify_user(encrypted_message)
@@ -183,13 +227,14 @@ class MntrServer:
         return {"message": encrypted_response}
 
     def subscribe(
-        self, passphrase: str, channels: List[str]
+        self, passphrase: str, channels: List[str], username: str
     ) -> Generator[Dict, None, None]:
         """
         Listens for updates on channels, encrypting full event payloads.
         """
         for channel in channels:
             _validate_name(channel, "channel")
+        self._check_subscribe_permissions(username, channels)
 
         for channel_data in self._state.subscribe(channels):
             payload = {
@@ -239,6 +284,9 @@ class MntrServer:
         app.route("/admin/users", methods=["POST"])(self.api_admin_users)
         app.route("/admin/add_user", methods=["POST"])(self.api_admin_add_user)
         app.route("/admin/remove_user", methods=["POST"])(self.api_admin_remove_user)
+        app.route("/admin/set_user_groups", methods=["POST"])(
+            self.api_admin_set_user_groups
+        )
         app.route("/admin/delete_channel", methods=["POST"])(
             self.api_admin_delete_channel
         )
@@ -270,7 +318,9 @@ class MntrServer:
     @handle_exception
     def api_server(self, session_id: str) -> Generator[str, None, None]:
         session = self._resolve_session(session_id)
-        return self.make_event_stream(self.heartbeat(session.passphrase))
+        return self.make_event_stream(
+            self.heartbeat(session.passphrase, session.user)
+        )
 
     @handle_exception
     def api_subscribe(
@@ -282,7 +332,9 @@ class MntrServer:
         if not isinstance(channels, list):
             raise MntrServerException("Invalid channel list")
         LOGGER.info("Subscriber %s connected to channels: %s", session.user, channels)
-        return self.make_event_stream(self.subscribe(session.passphrase, channels))
+        return self.make_event_stream(
+            self.subscribe(session.passphrase, channels, session.user)
+        )
 
     @handle_exception
     def api_validate(self):
@@ -328,7 +380,13 @@ class MntrServer:
         if not isinstance(data, dict):
             return
         stored_admins = data.pop("_admins", [])
+        stored_groups = data.pop("_groups", {})
         self._admin_users.update(stored_admins)
+        for group_name, members in stored_groups.items():
+            existing = self._user_groups.setdefault(group_name, [])
+            for m in members:
+                if m not in existing:
+                    existing.append(m)
         self._client_passphrases.update(data)
 
     def _save_credentials(self) -> None:
@@ -336,7 +394,11 @@ class MntrServer:
         if cred_file is None:
             return
         self._store_path.mkdir(exist_ok=True, parents=True)
-        data = {"_admins": sorted(self._admin_users)}
+        data: dict = {"_admins": sorted(self._admin_users)}
+        if self._user_groups:
+            data["_groups"] = {
+                k: sorted(v) for k, v in self._user_groups.items()
+            }
         data.update(self._client_passphrases)
         fd, tmp_path = tempfile.mkstemp(
             dir=self._store_path, suffix=".yaml"
@@ -366,10 +428,17 @@ class MntrServer:
         session = self._authenticate_admin(body)
         with self._lock:
             users = [
-                {"user": u, "is_admin": u in self._admin_users}
+                {
+                    "user": u,
+                    "is_admin": u in self._admin_users,
+                    "groups": sorted(self._get_user_groups(u) - {u}),
+                }
                 for u in sorted(self._client_passphrases.keys())
             ]
-        response = json.dumps({"users": users})
+            groups = {
+                k: sorted(v) for k, v in self._user_groups.items()
+            }
+        response = json.dumps({"users": users, "groups": groups})
         return json.dumps({"data": aes_encrypt(response, session.passphrase)})
 
     @handle_exception
@@ -410,6 +479,38 @@ class MntrServer:
         response = json.dumps({"status": "ok"})
         return json.dumps({"data": aes_encrypt(response, session.passphrase)})
 
+
+    @handle_exception
+    def api_admin_set_user_groups(self):
+        body = cast(Dict, flask.request.json)
+        session = self._authenticate_admin(body)
+        payload_json = aes_decrypt(body.get("payload", ""), session.passphrase)
+        payload = json.loads(payload_json)
+        target_user = payload.get("target_user", "")
+        groups = payload.get("groups", [])
+        if not isinstance(groups, list):
+            raise MntrServerException("groups must be a list")
+        for g in groups:
+            _validate_name(g, "group")
+        with self._lock:
+            if target_user not in self._client_passphrases:
+                raise MntrServerException("User not found")
+            # Remove user from all existing groups
+            for members in self._user_groups.values():
+                if target_user in members:
+                    members.remove(target_user)
+            # Add user to specified groups
+            for g in groups:
+                self._user_groups.setdefault(g, [])
+                if target_user not in self._user_groups[g]:
+                    self._user_groups[g].append(target_user)
+            # Clean up empty groups
+            self._user_groups = {
+                k: v for k, v in self._user_groups.items() if v
+            }
+            self._save_credentials()
+        response = json.dumps({"status": "ok"})
+        return json.dumps({"data": aes_encrypt(response, session.passphrase)})
 
     @handle_exception
     def api_admin_delete_channel(self):

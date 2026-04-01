@@ -238,6 +238,21 @@ const adminRemoveUser = (sessionId, passphrase, targetUser) => {
   });
 };
 
+const adminSetUserGroups = (sessionId, passphrase, targetUser, groups) => {
+  const payload = aesEncrypt(
+    JSON.stringify({ target_user: targetUser, groups }),
+    passphrase,
+  );
+  return fetch(`${API_URL}/admin/set_user_groups`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId, payload }),
+  }).then((r) => {
+    if (!r.ok) return r.text().then((t) => Promise.reject(t));
+    return r.json().then((e) => JSON.parse(aesDecrypt(e.data, passphrase)));
+  });
+};
+
 const adminDeleteChannel = (sessionId, passphrase, channel) => {
   const payload = aesEncrypt(
     JSON.stringify({ channel }),
@@ -262,5 +277,6 @@ export {
   adminListUsers,
   adminAddUser,
   adminRemoveUser,
+  adminSetUserGroups,
   adminDeleteChannel,
 };

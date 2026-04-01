@@ -1,5 +1,12 @@
 # client passphrases `CLIENT_NAME:PASSPHRASE`
 _admins:
   - client0
+_groups:
+  ops:
+    - client0
+    - client1
+  dev:
+    - client1
 client0: "client0"
 client1: "client1"
+client2: "client2"

@@ -64,6 +64,7 @@ class AbstractRunner(metaclass=ABCMeta):
         self.__channel = channel
         self.__publisher = publisher
         self.__ttl = publisher.get_ttl()
+        self.__groups = publisher.params.get("groups")
         self.__logger = logging.getLogger(f"AbstractRunner.{self.__channel}")
         self.__stopped = Value(c_int)
         self.__client = PublisherClient(
@@ -91,6 +92,7 @@ class AbstractRunner(metaclass=ABCMeta):
                     channel=self.__channel,
                     channel_data=channel_data,
                     ttl=self.__ttl,
+                    groups=self.__groups,
                 )
             except Exception as e:
                 self.__logger.error(

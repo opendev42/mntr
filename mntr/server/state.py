@@ -118,6 +118,7 @@ class MntrState:
         content: Dict,
         publisher: str,
         ttl: Optional[float] = None,
+        groups: Optional[List[str]] = None,
     ) -> None:
         with self._channel_data_lock:
             try:
@@ -137,6 +138,7 @@ class MntrState:
                 publisher=publisher,
                 ttl=ttl,
                 expires_at=expires_at,
+                groups=groups,
             )
             self.update(channel, channel_data)
             LOGGER.info(f"{channel} updated - seqno: {seqno}")
@@ -236,3 +238,4 @@ class ChannelData(NamedTuple):
     publisher: str
     ttl: Optional[float] = None
     expires_at: Optional[float] = None
+    groups: Optional[List[str]] = None

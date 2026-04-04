@@ -86,11 +86,20 @@ client1: "client1"
 client2: "client2"
 ```
 
-Every user implicitly belongs to a group matching their username (e.g. user `client1` is always in group `client1`). When a publisher tags a channel with groups, only users who belong to at least one of those groups can see the channel.
+Every user implicitly belongs to a group matching their username (e.g. user `client1` is always in group `client1`).
 
 - **No groups on a channel** = visible to all users (backward compatible).
-- **Admin users** can see all channels regardless of group restrictions.
+- **Admin users** can see all channels and publish to any channel regardless of group restrictions.
 - Group memberships can also be managed through the web dashboard's "Manage Users" section.
+
+### Channel permissions
+
+Admins can set per-channel read and write permissions through the web dashboard's "Manage Channels" section:
+
+- **Read groups** control who can see and subscribe to a channel.
+- **Write groups** control who can publish to a channel.
+
+When both admin-set permissions and publisher-set groups exist on a channel, admin permissions take precedence. If no admin permissions are configured, publisher-set groups are used as a fallback for read visibility, and any user can publish.
 
 ## Publishers
 

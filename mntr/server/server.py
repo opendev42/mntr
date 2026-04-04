@@ -103,7 +103,9 @@ class MntrServer:
         self._sessions: Dict[str, _Session] = {}
         self._session_lock = threading.Lock()
         self._session_ttl = session_ttl
+        self._channel_permissions: Dict[str, Dict] = {}
         self._load_stored_credentials()
+        self._load_channel_permissions()
 
     def _create_session(self, user: str) -> str:
         session_id = secrets.token_hex(32)
@@ -141,6 +143,16 @@ class MntrServer:
                 groups.add(group_name)
         return groups
 
+    def _get_read_groups(self, channel: str) -> Optional[List[str]]:
+        perms = self._channel_permissions.get(channel, {})
+        read_groups = perms.get("read_groups")
+        if read_groups is not None:
+            return read_groups
+        cd = self._state._get_channel_data(channel)
+        if cd is not None and cd.groups:
+            return cd.groups
+        return None
+
     def _filter_channels(self, username: str, channels: List[str]) -> List[str]:
         if username in self._admin_users:
             return channels
@@ -148,8 +160,8 @@ class MntrServer:
         return [
             ch
             for ch in channels
-            if (cd := self._state._get_channel_data(ch)) is not None
-            and (not cd.groups or user_groups & set(cd.groups))
+            if (rg := self._get_read_groups(ch)) is None
+            or user_groups & set(rg)
         ]
 
     def _check_subscribe_permissions(
@@ -159,11 +171,26 @@ class MntrServer:
             return
         user_groups = self._get_user_groups(username)
         for ch in channels:
-            cd = self._state._get_channel_data(ch)
-            if cd is not None and cd.groups and not (user_groups & set(cd.groups)):
+            rg = self._get_read_groups(ch)
+            if rg is not None and not (user_groups & set(rg)):
                 raise MntrServerException(
                     f"Permission denied for channel: {ch}"
                 )
+
+    def _check_publish_permission(
+        self, username: str, channel: str
+    ) -> None:
+        if username in self._admin_users:
+            return
+        perms = self._channel_permissions.get(channel, {})
+        write_groups = perms.get("write_groups")
+        if write_groups is None:
+            return
+        user_groups = self._get_user_groups(username)
+        if not (user_groups & set(write_groups)):
+            raise MntrServerException(
+                f"Not authorized to publish to channel: {channel}"
+            )
 
     def heartbeat(
         self, passphrase: str, username: str, interval: float = 1.0
@@ -197,6 +224,7 @@ class MntrServer:
         payload = json.loads(decrypted)
         channel = payload.get("channel", "")
         _validate_name(channel, "channel")
+        self._check_publish_permission(session.user, channel)
 
         channel_data = payload.get("data", {})
         ttl = payload.get("ttl")
@@ -289,6 +317,12 @@ class MntrServer:
         )
         app.route("/admin/delete_channel", methods=["POST"])(
             self.api_admin_delete_channel
+        )
+        app.route("/admin/get_channel_permissions", methods=["POST"])(
+            self.api_admin_get_channel_permissions
+        )
+        app.route("/admin/set_channel_permissions", methods=["POST"])(
+            self.api_admin_set_channel_permissions
         )
 
         if self._debug:
@@ -411,6 +445,39 @@ class MntrServer:
             os.unlink(tmp_path)
             raise
 
+    def _channel_permissions_file(self) -> Optional[Path]:
+        if self._store_path is None:
+            return None
+        return self._store_path / "channel_permissions.yaml"
+
+    def _load_channel_permissions(self) -> None:
+        perm_file = self._channel_permissions_file()
+        if perm_file is None or not perm_file.exists():
+            return
+        data = yaml.safe_load(perm_file.read_text())
+        if isinstance(data, dict):
+            self._channel_permissions.update(data)
+
+    def _save_channel_permissions(self) -> None:
+        perm_file = self._channel_permissions_file()
+        if perm_file is None:
+            return
+        self._store_path.mkdir(exist_ok=True, parents=True)
+        fd, tmp_path = tempfile.mkstemp(
+            dir=self._store_path, suffix=".yaml"
+        )
+        try:
+            with os.fdopen(fd, "w") as f:
+                yaml.dump(
+                    dict(self._channel_permissions),
+                    f,
+                    default_flow_style=False,
+                )
+            os.replace(tmp_path, str(perm_file))
+        except Exception:
+            os.unlink(tmp_path)
+            raise
+
     @handle_exception
     def api_admin_check(self):
         ip = flask.request.remote_addr
@@ -521,6 +588,46 @@ class MntrServer:
         channel = payload.get("channel", "")
         _validate_name(channel, "channel")
         self._state.remove_channel(channel)
+        response = json.dumps({"status": "ok"})
+        return json.dumps({"data": aes_encrypt(response, session.passphrase)})
+
+
+    @handle_exception
+    def api_admin_get_channel_permissions(self):
+        body = cast(Dict, flask.request.json)
+        session = self._authenticate_admin(body)
+        with self._lock:
+            perms = dict(self._channel_permissions)
+        response = json.dumps({"permissions": perms})
+        return json.dumps({"data": aes_encrypt(response, session.passphrase)})
+
+    @handle_exception
+    def api_admin_set_channel_permissions(self):
+        body = cast(Dict, flask.request.json)
+        session = self._authenticate_admin(body)
+        payload_json = aes_decrypt(body.get("payload", ""), session.passphrase)
+        payload = json.loads(payload_json)
+        channel = payload.get("channel", "")
+        _validate_name(channel, "channel")
+        read_groups = payload.get("read_groups")
+        write_groups = payload.get("write_groups")
+        for groups in (read_groups, write_groups):
+            if groups is not None:
+                if not isinstance(groups, list):
+                    raise MntrServerException("groups must be a list")
+                for g in groups:
+                    _validate_name(g, "group")
+        with self._lock:
+            perms: Dict = {}
+            if read_groups is not None:
+                perms["read_groups"] = read_groups
+            if write_groups is not None:
+                perms["write_groups"] = write_groups
+            if perms:
+                self._channel_permissions[channel] = perms
+            else:
+                self._channel_permissions.pop(channel, None)
+            self._save_channel_permissions()
         response = json.dumps({"status": "ok"})
         return json.dumps({"data": aes_encrypt(response, session.passphrase)})
 

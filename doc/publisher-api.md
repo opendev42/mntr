@@ -65,6 +65,11 @@ client.publish("public-channel", data)
 Groups are configured in the server's passphrases file (see the main README)
 and can be managed by admins through the web dashboard.
 
+**Note:** Admins can also set per-channel read and write permissions through
+the "Manage Channels" dashboard. Admin-set permissions take precedence over
+publisher-set groups. If an admin has configured write permissions on a
+channel, only users in the allowed groups can publish to it.
+
 ```python
 client.authenticate()
 ```

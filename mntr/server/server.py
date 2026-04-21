@@ -598,7 +598,14 @@ class MntrServer:
         session = self._authenticate_admin(body)
         with self._lock:
             perms = dict(self._channel_permissions)
-        response = json.dumps({"permissions": perms})
+        publisher_groups = {}
+        for ch, cd in self._state._channel_data.items():
+            if cd.groups:
+                publisher_groups[ch] = list(cd.groups)
+        response = json.dumps({
+            "permissions": perms,
+            "publisher_groups": publisher_groups,
+        })
         return json.dumps({"data": aes_encrypt(response, session.passphrase)})
 
     @handle_exception

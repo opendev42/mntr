@@ -14,7 +14,9 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import Menu from "@mui/material/Menu";
 import MenuIcon from "@mui/icons-material/Menu";
 import MenuItem from "@mui/material/MenuItem";
+import Divider from "@mui/material/Divider";
 import Typography from "@mui/material/Typography";
+import PersonIcon from "@mui/icons-material/Person";
 import PeopleIcon from "@mui/icons-material/People";
 import DnsIcon from "@mui/icons-material/Dns";
 import PhoneAndroidIcon from '@mui/icons-material/PhoneAndroid';
@@ -37,6 +39,7 @@ const SideMenu = () => {
   const isMobile = useSelector((state) => state.mobile.isMobile);
   const isDark = useSelector((state) => state.theme?.isDark ?? false);
   const isAdmin = useSelector((state) => state.credentials.isAdmin);
+  const credentials = useSelector((state) => state.credentials.credentials);
 
   const uploadFile = React.useRef(null);
   const dispatch = useDispatch();
@@ -67,6 +70,16 @@ const SideMenu = () => {
         onClose={() => setShowMenu(false)}
         anchorEl={anchorEl}
       >
+        {credentials && (
+          <MenuItem disabled>
+            <ListItemIcon><PersonIcon /></ListItemIcon>
+            <ListItemText>
+              <Typography fontWeight={500}>{credentials.user}</Typography>
+            </ListItemText>
+          </MenuItem>
+        )}
+        <Divider />
+
         <SideMenuItem
           title="Help"
           icon={<HelpOutlineIcon />}
@@ -179,14 +192,60 @@ const SideMenuItem = ({ title, icon, onClick, closeMenu }) => {
 };
 
 // help
+const HelpSection = ({ title, children }) => (
+  <>
+    <Typography variant="subtitle2" sx={{ mt: 2, mb: 0.5 }} fontWeight={600}>
+      {title}
+    </Typography>
+    {children}
+  </>
+);
+
+const HelpItem = ({ primary, secondary }) => (
+  <Typography variant="body2" sx={{ pl: 1, mb: 0.5 }} color="text.secondary">
+    <strong>{primary}</strong> {secondary && `\u2014 ${secondary}`}
+  </Typography>
+);
+
 const HelpDialog = ({ open, setOpen }) => {
   return (
-    <Dialog open={open}>
+    <Dialog open={open} maxWidth="sm" fullWidth>
       <DialogTitle>Help</DialogTitle>
       <DialogContent>
-        <Typography>
-          <li>Ctrl-Click to drag panels.</li>
-        </Typography>
+        <HelpSection title="Panels">
+          <HelpItem primary="Add panel" secondary='click the "+" button in the bottom bar.' />
+          <HelpItem primary="Select channel" secondary="use the dropdown at the top of each panel to choose a channel." />
+          <HelpItem primary="Move panels" secondary="Ctrl-click and drag a panel to reposition it." />
+          <HelpItem primary="Resize panels" secondary="drag the bottom-right corner of a panel." />
+          <HelpItem primary="Close panel" secondary='click the "X" button on the panel.' />
+        </HelpSection>
+
+        <HelpSection title="Windows">
+          <HelpItem primary="Switch windows" secondary="click the window name in the bottom bar to open the window menu." />
+          <HelpItem primary="Add window" secondary='use the "New window" option in the window menu.' />
+          <HelpItem primary="Rename window" secondary="click the edit icon next to a window name in the menu." />
+          <HelpItem primary="Clear panels" secondary="removes all panels from the current window." />
+          <HelpItem primary="Close window" secondary="removes the window and all its panels." />
+        </HelpSection>
+
+        <HelpSection title="Layout">
+          <HelpItem primary="Download layout" secondary="saves your current panel arrangement as a JSON file." />
+          <HelpItem primary="Upload layout" secondary="restores a previously saved layout from a JSON file." />
+          <HelpItem primary="Mobile / Desktop mode" secondary="switches between single-panel and multi-panel grid views." />
+          <HelpItem primary="Dark / Light mode" secondary="toggles the color theme." />
+        </HelpSection>
+
+        <HelpSection title="Admin (admin users only)">
+          <HelpItem primary="Manage Users" secondary="add or remove users, and assign group memberships." />
+          <HelpItem primary="Manage Channels" secondary="delete channels, and set read/write group permissions." />
+        </HelpSection>
+
+        <HelpSection title="Channels & Groups">
+          <HelpItem primary="Groups" secondary="users belong to groups. Channels can be restricted so only certain groups can see or publish to them." />
+          <HelpItem primary="Read groups" secondary="control who can see and subscribe to a channel." />
+          <HelpItem primary="Write groups" secondary="control who can publish data to a channel." />
+          <HelpItem primary="No restriction" secondary="channels without group permissions are visible to all users." />
+        </HelpSection>
       </DialogContent>
       <DialogActions>
         <Button

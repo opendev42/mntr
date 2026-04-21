@@ -63,8 +63,8 @@ const PermissionRow = ({ label, groups, editing, editValue, onEdit, onSave, onCa
             <Chip key={g} label={g} size="small" variant="outlined" />
           ))
         ) : (
-          <Typography variant="caption" color="text.disabled">
-            all
+          <Typography variant="caption" color="text.disabled" sx={{ fontStyle: "italic" }}>
+            no override
           </Typography>
         )}
         <IconButton size="small" onClick={onEdit}>
@@ -81,6 +81,7 @@ const ChannelDialog = ({ open, setOpen }) => {
 
   const [channels, setChannels] = React.useState([]);
   const [permissions, setPermissions] = React.useState({});
+  const [publisherGroups, setPublisherGroups] = React.useState({});
   const [error, setError] = React.useState(null);
   const [success, setSuccess] = React.useState(null);
   const [confirmDelete, setConfirmDelete] = React.useState(null);
@@ -91,7 +92,10 @@ const ChannelDialog = ({ open, setOpen }) => {
   const fetchPermissions = React.useCallback(() => {
     if (!credentials || !sessionId) return;
     adminGetChannelPermissions(sessionId, credentials.passphrase)
-      .then((data) => setPermissions(data.permissions || {}))
+      .then((data) => {
+        setPermissions(data.permissions || {});
+        setPublisherGroups(data.publisher_groups || {});
+      })
       .catch(() => {});
   }, [credentials, sessionId]);
 
@@ -218,6 +222,16 @@ const ChannelDialog = ({ open, setOpen }) => {
                     onCancel={cancelEdit}
                     onChangeValue={setEditWriteValue}
                   />
+                  {publisherGroups[ch] && (
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: 2, pb: 0.5 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5, minWidth: 40 }}>
+                        pub:
+                      </Typography>
+                      {publisherGroups[ch].map((g) => (
+                        <Chip key={g} label={g} size="small" variant="outlined" color="secondary" />
+                      ))}
+                    </Box>
+                  )}
                 </ListItem>
               );
             })}

@@ -291,3 +291,157 @@ class TestGroupPermissions:
         cd = grouped_server._state._get_channel_data("compat-chan")
         assert cd is not None
         assert cd.groups is None
+
+
+class TestAdminSetUserGroups:
+    def test_set_user_groups(self, grouped_server):
+        """Verify group manipulation logic works correctly."""
+        assert grouped_server._get_user_groups("bob") == {"bob", "ops"}
+        # Remove bob from all groups, add to dev
+        for members in grouped_server._user_groups.values():
+            if "bob" in members:
+                members.remove("bob")
+        grouped_server._user_groups.setdefault("dev", []).append("bob")
+        assert grouped_server._get_user_groups("bob") == {"bob", "dev"}
+
+    def test_set_user_to_multiple_groups(self, grouped_server):
+        """User can be added to multiple groups."""
+        grouped_server._user_groups.setdefault("dev", []).append("bob")
+        assert grouped_server._get_user_groups("bob") == {"bob", "ops", "dev"}
+
+    def test_remove_user_from_all_groups(self, grouped_server):
+        """User removed from all explicit groups retains implicit group."""
+        for members in grouped_server._user_groups.values():
+            if "bob" in members:
+                members.remove("bob")
+        assert grouped_server._get_user_groups("bob") == {"bob"}
+
+    def test_non_admin_cannot_set_groups(self, grouped_server):
+        session_id = grouped_server._create_session("bob")
+        body = {"session_id": session_id}
+        with pytest.raises(MntrServerException, match="Not an admin"):
+            grouped_server._authenticate_admin(body)
+
+
+class TestChannelPermissions:
+    def test_publish_unrestricted(self, grouped_server):
+        """Anyone can publish when no write_groups set."""
+        _publish_channel(grouped_server, "bob", "free-chan")
+        cd = grouped_server._state._get_channel_data("free-chan")
+        assert cd is not None
+
+    def test_publish_permission_denied(self, grouped_server):
+        """Non-member can't publish to restricted channel."""
+        grouped_server._channel_permissions["locked-chan"] = {
+            "write_groups": ["ops"]
+        }
+        with pytest.raises(MntrServerException, match="Not authorized"):
+            _publish_channel(grouped_server, "carol", "locked-chan")
+
+    def test_publish_permission_granted(self, grouped_server):
+        """Member of write_groups can publish."""
+        grouped_server._channel_permissions["ops-chan"] = {
+            "write_groups": ["ops"]
+        }
+        _publish_channel(grouped_server, "bob", "ops-chan")
+        cd = grouped_server._state._get_channel_data("ops-chan")
+        assert cd is not None
+
+    def test_admin_bypasses_publish_permission(self, grouped_server):
+        """Admin can publish to any channel regardless of write_groups."""
+        grouped_server._channel_permissions["locked-chan"] = {
+            "write_groups": ["ops"]
+        }
+        _publish_channel(grouped_server, "alice", "locked-chan")
+        cd = grouped_server._state._get_channel_data("locked-chan")
+        assert cd is not None
+
+    def test_admin_read_groups_override_publisher(self, grouped_server):
+        """Admin-set read_groups takes precedence over ChannelData.groups."""
+        _publish_channel(grouped_server, "alice", "mixed-chan", groups=["ops"])
+        # Without admin permissions, bob (ops) sees it
+        assert grouped_server._filter_channels("bob", ["mixed-chan"]) == [
+            "mixed-chan"
+        ]
+        # Admin overrides to dev-only
+        grouped_server._channel_permissions["mixed-chan"] = {
+            "read_groups": ["dev"]
+        }
+        # Now bob (ops) can't see it, carol (dev) can
+        assert grouped_server._filter_channels("bob", ["mixed-chan"]) == []
+        assert grouped_server._filter_channels("carol", ["mixed-chan"]) == [
+            "mixed-chan"
+        ]
+
+    def test_publisher_groups_fallback(self, grouped_server):
+        """ChannelData.groups used when no admin read permissions set."""
+        _publish_channel(grouped_server, "alice", "pub-chan", groups=["ops"])
+        # No admin permissions set — publisher groups apply
+        assert grouped_server._filter_channels("bob", ["pub-chan"]) == [
+            "pub-chan"
+        ]
+        assert grouped_server._filter_channels("carol", ["pub-chan"]) == []
+
+    def test_subscribe_uses_channel_permissions(self, grouped_server):
+        """Subscribe enforcement respects admin permissions."""
+        _publish_channel(grouped_server, "alice", "sub-chan")
+        grouped_server._channel_permissions["sub-chan"] = {
+            "read_groups": ["dev"]
+        }
+        # bob (ops) denied
+        with pytest.raises(MntrServerException, match="Permission denied"):
+            grouped_server._check_subscribe_permissions("bob", ["sub-chan"])
+        # carol (dev) allowed
+        grouped_server._check_subscribe_permissions("carol", ["sub-chan"])
+
+    def test_set_channel_permissions(self, grouped_server):
+        """Directly set and verify channel permissions."""
+        grouped_server._channel_permissions["test-ch"] = {
+            "read_groups": ["ops"],
+            "write_groups": ["ops", "dev"],
+        }
+        assert grouped_server._channel_permissions["test-ch"]["read_groups"] == [
+            "ops"
+        ]
+        assert grouped_server._channel_permissions["test-ch"]["write_groups"] == [
+            "ops",
+            "dev",
+        ]
+
+    def test_clear_channel_permissions(self, grouped_server):
+        """Setting both to None removes the entry."""
+        grouped_server._channel_permissions["test-ch"] = {
+            "read_groups": ["ops"]
+        }
+        # Simulate clearing: remove entry
+        grouped_server._channel_permissions.pop("test-ch", None)
+        assert "test-ch" not in grouped_server._channel_permissions
+
+    def test_non_admin_cannot_set_permissions(self, grouped_server):
+        session_id = grouped_server._create_session("bob")
+        body = {"session_id": session_id}
+        with pytest.raises(MntrServerException, match="Not an admin"):
+            grouped_server._authenticate_admin(body)
+
+    def test_permissions_persisted(self, tmp_path):
+        """Channel permissions round-trip through save/load."""
+        server = MntrServer(
+            client_passphrases={"alice": "alice-pass"},
+            admin_users={"alice"},
+            store_path=tmp_path,
+        )
+        server._channel_permissions["ch1"] = {
+            "read_groups": ["ops"],
+            "write_groups": ["dev"],
+        }
+        server._save_channel_permissions()
+
+        server2 = MntrServer(
+            client_passphrases={"alice": "alice-pass"},
+            admin_users={"alice"},
+            store_path=tmp_path,
+        )
+        assert server2._channel_permissions["ch1"] == {
+            "read_groups": ["ops"],
+            "write_groups": ["dev"],
+        }

@@ -268,6 +268,42 @@ const adminDeleteChannel = (sessionId, passphrase, channel) => {
   });
 };
 
+const adminGetChannelPermissions = (sessionId, passphrase) => {
+  return fetch(`${API_URL}/admin/get_channel_permissions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId }),
+  }).then((r) => {
+    if (!r.ok) return r.text().then((t) => Promise.reject(t));
+    return r.json().then((e) => JSON.parse(aesDecrypt(e.data, passphrase)));
+  });
+};
+
+const adminSetChannelPermissions = (
+  sessionId,
+  passphrase,
+  channel,
+  readGroups,
+  writeGroups,
+) => {
+  const payload = aesEncrypt(
+    JSON.stringify({
+      channel,
+      read_groups: readGroups,
+      write_groups: writeGroups,
+    }),
+    passphrase,
+  );
+  return fetch(`${API_URL}/admin/set_channel_permissions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_id: sessionId, payload }),
+  }).then((r) => {
+    if (!r.ok) return r.text().then((t) => Promise.reject(t));
+    return r.json().then((e) => JSON.parse(aesDecrypt(e.data, passphrase)));
+  });
+};
+
 export {
   subscribe,
   listenChannels,
@@ -279,4 +315,6 @@ export {
   adminRemoveUser,
   adminSetUserGroups,
   adminDeleteChannel,
+  adminGetChannelPermissions,
+  adminSetChannelPermissions,
 };

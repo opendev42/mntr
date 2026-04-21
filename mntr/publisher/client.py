@@ -1,6 +1,6 @@
 import logging
 import secrets
-from typing import Optional
+from typing import List, Optional
 
 import requests  # type: ignore[import-untyped]
 import simplejson as json
@@ -50,6 +50,7 @@ class PublisherClient:
         channel_data: MonitorData,
         encoding: str = "utf8",
         ttl: Optional[float] = None,
+        groups: Optional[List[str]] = None,
     ):
         if self._session_id is None:
             self.authenticate()
@@ -61,6 +62,8 @@ class PublisherClient:
         }
         if ttl is not None:
             payload_dict["ttl"] = ttl
+        if groups is not None:
+            payload_dict["groups"] = groups
         payload = json.dumps(payload_dict, ignore_nan=True)
         encrypted_payload = aes_encrypt(payload, self._passphrase)
 

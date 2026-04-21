@@ -18,12 +18,14 @@ def main():
     client_passphrases = yaml.safe_load(args.client_passphrases.read_text())
 
     admin_users = set(client_passphrases.pop("_admins", []))
+    user_groups = client_passphrases.pop("_groups", {})
 
     server = MntrServer(
         debug=args.debug,
         store_path=args.store_path,
         client_passphrases=client_passphrases,
         admin_users=admin_users,
+        user_groups=user_groups,
         rate_limit=args.rate_limit,
         rate_limit_window=args.rate_limit_window,
         session_ttl=args.session_ttl,

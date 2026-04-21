@@ -13,11 +13,19 @@ import ListItem from "@mui/material/ListItem";
 import ListItemText from "@mui/material/ListItemText";
 import IconButton from "@mui/material/IconButton";
 import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
+import CheckIcon from "@mui/icons-material/Check";
+import CloseIcon from "@mui/icons-material/Close";
 import Chip from "@mui/material/Chip";
 import CircularProgress from "@mui/material/CircularProgress";
 import Typography from "@mui/material/Typography";
 
-import { adminListUsers, adminAddUser, adminRemoveUser } from "../../util/connection";
+import {
+  adminListUsers,
+  adminAddUser,
+  adminRemoveUser,
+  adminSetUserGroups,
+} from "../../util/connection";
 
 const AdminDialog = ({ open, setOpen }) => {
   const credentials = useSelector((state) => state.credentials.credentials);
@@ -30,6 +38,8 @@ const AdminDialog = ({ open, setOpen }) => {
   const [newUser, setNewUser] = React.useState("");
   const [newPassphrase, setNewPassphrase] = React.useState("");
   const [confirmDelete, setConfirmDelete] = React.useState(null);
+  const [editingGroups, setEditingGroups] = React.useState(null);
+  const [editGroupsValue, setEditGroupsValue] = React.useState("");
 
   const fetchUsers = React.useCallback(() => {
     if (!credentials || !sessionId) return;
@@ -51,6 +61,7 @@ const AdminDialog = ({ open, setOpen }) => {
       setNewUser("");
       setNewPassphrase("");
       setConfirmDelete(null);
+      setEditingGroups(null);
     }
   }, [open, fetchUsers]);
 
@@ -86,6 +97,35 @@ const AdminDialog = ({ open, setOpen }) => {
       });
   };
 
+  const startEditGroups = (user) => {
+    setEditingGroups(user.user);
+    setEditGroupsValue(user.groups.join(", "));
+    setError(null);
+    setSuccess(null);
+  };
+
+  const cancelEditGroups = () => {
+    setEditingGroups(null);
+    setEditGroupsValue("");
+  };
+
+  const saveGroups = (targetUser) => {
+    const groups = editGroupsValue
+      .split(/[,\s]+/)
+      .map((g) => g.trim())
+      .filter((g) => g.length > 0);
+    setError(null);
+    setSuccess(null);
+    adminSetUserGroups(sessionId, credentials.passphrase, targetUser, groups)
+      .then(() => {
+        setSuccess(`Groups updated for "${targetUser}"`);
+        setEditingGroups(null);
+        setEditGroupsValue("");
+        fetchUsers();
+      })
+      .catch((e) => setError(String(e)));
+  };
+
   return (
     <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
       <DialogTitle>Manage Users</DialogTitle>
@@ -101,45 +141,127 @@ const AdminDialog = ({ open, setOpen }) => {
               {users.map((u) => (
                 <ListItem
                   key={u.user}
-                  secondaryAction={
-                    confirmDelete === u.user ? (
-                      <Box>
-                        <Button
-                          size="small"
-                          color="error"
-                          onClick={() => handleRemove(u.user)}
-                        >
-                          Confirm
-                        </Button>
-                        <Button
-                          size="small"
-                          onClick={() => setConfirmDelete(null)}
-                        >
-                          Cancel
-                        </Button>
-                      </Box>
-                    ) : (
-                      u.user !== credentials.user && (
-                        <IconButton
-                          edge="end"
-                          onClick={() => setConfirmDelete(u.user)}
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      )
-                    )
-                  }
+                  sx={{ flexDirection: "column", alignItems: "stretch" }}
                 >
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        <Typography>{u.user}</Typography>
-                        {u.is_admin && (
-                          <Chip label="admin" size="small" color="primary" />
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      width: "100%",
+                    }}
+                  >
+                    <ListItemText
+                      primary={
+                        <Box
+                          sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1,
+                          }}
+                        >
+                          <Typography>{u.user}</Typography>
+                          {u.is_admin && (
+                            <Chip label="admin" size="small" color="primary" />
+                          )}
+                        </Box>
+                      }
+                    />
+                    <Box sx={{ display: "flex", gap: 0.5 }}>
+                      {confirmDelete === u.user ? (
+                        <>
+                          <Button
+                            size="small"
+                            color="error"
+                            onClick={() => handleRemove(u.user)}
+                          >
+                            Confirm
+                          </Button>
+                          <Button
+                            size="small"
+                            onClick={() => setConfirmDelete(null)}
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        u.user !== credentials.user && (
+                          <IconButton
+                            size="small"
+                            onClick={() => setConfirmDelete(u.user)}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        )
+                      )}
+                    </Box>
+                  </Box>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 0.5,
+                      pl: 2,
+                      pb: 0.5,
+                    }}
+                  >
+                    {editingGroups === u.user ? (
+                      <>
+                        <TextField
+                          size="small"
+                          variant="standard"
+                          placeholder="group1, group2, ..."
+                          value={editGroupsValue}
+                          onChange={(e) => setEditGroupsValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") saveGroups(u.user);
+                            if (e.key === "Escape") cancelEditGroups();
+                          }}
+                          sx={{ flex: 1 }}
+                          autoFocus
+                        />
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => saveGroups(u.user)}
+                        >
+                          <CheckIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton size="small" onClick={cancelEditGroups}>
+                          <CloseIcon fontSize="small" />
+                        </IconButton>
+                      </>
+                    ) : (
+                      <>
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ mr: 0.5 }}
+                        >
+                          groups:
+                        </Typography>
+                        {u.groups.length > 0 ? (
+                          u.groups.map((g) => (
+                            <Chip
+                              key={g}
+                              label={g}
+                              size="small"
+                              variant="outlined"
+                            />
+                          ))
+                        ) : (
+                          <Typography variant="caption" color="text.disabled">
+                            none
+                          </Typography>
                         )}
-                      </Box>
-                    }
-                  />
+                        <IconButton
+                          size="small"
+                          onClick={() => startEditGroups(u)}
+                        >
+                          <EditIcon fontSize="small" />
+                        </IconButton>
+                      </>
+                    )}
+                  </Box>
                 </ListItem>
               ))}
             </List>

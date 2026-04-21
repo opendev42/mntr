@@ -9,71 +9,85 @@ system-logs: &LOGS
   class: examples.example_publishers.SystemLogPublisher
   params:
     interval: 3
+    groups: [client1]
 
 service-status: &STATUS
   class: examples.example_publishers.ServiceStatusPublisher
   params:
     interval: 4
+    groups: [client1]
 
 request-latency: &LATENCY
   class: examples.example_publishers.RequestLatencyPublisher
   params:
     interval: 2
+    groups: [client1]
 
 error-rate:
   class: examples.example_publishers.ErrorRatePublisher
   params:
     interval: 2.5
+    groups: [client1]
 
 traffic-by-endpoint:
   class: examples.example_publishers.TrafficByEndpointPublisher
   params:
     interval: 3
+    groups: [client2]
 
 resource-usage:
   class: examples.example_publishers.ResourceUsagePublisher
   params:
     interval: 3
+    groups: [client2]
 
 status-codes:
   class: examples.example_publishers.StatusCodeDistPublisher
   params:
     interval: 4
+    groups: [client2]
 
 latency-distribution:
   class: examples.example_publishers.LatencyDistributionPublisher
   params:
     interval: 5
+    groups: [client2]
 
 request-log:
   class: examples.example_publishers.RequestLogPublisher
   params:
     interval: 2
+    groups: [client2]
 
 deploy-status: &DEPLOY
   class: examples.example_publishers.DeployStatusPublisher
   params:
     interval: 5
+    groups: [client2]
 
 alert-error: &ALERT_ERROR
   class: examples.example_publishers.AlertPublisher
   params:
     alert_severity: error
+    groups: [client1]
 
 alert-warning:
   class: examples.example_publishers.AlertPublisher
   params:
     alert_severity: warning
+    groups: [client1]
 
 alert-info:
   class: examples.example_publishers.AlertPublisher
   params:
     alert_severity: info
+    groups: [client2]
 
 alert-success:
   class: examples.example_publishers.AlertPublisher
   params:
     alert_severity: success
+    groups: [client2]
 
 overview:
   class: examples.example_publishers.DashboardPublisher

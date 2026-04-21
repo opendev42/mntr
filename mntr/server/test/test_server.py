@@ -181,3 +181,113 @@ class TestAdminDeleteChannel:
         }
         with pytest.raises(MntrServerException, match="Not an admin"):
             server._authenticate_admin(body)
+
+
+@pytest.fixture
+def grouped_server():
+    return MntrServer(
+        client_passphrases={
+            "alice": "alice-pass",
+            "bob": "bob-pass",
+            "carol": "carol-pass",
+        },
+        admin_users={"alice"},
+        user_groups={"ops": ["bob"], "dev": ["carol"]},
+        session_ttl=60.0,
+    )
+
+
+def _publish_channel(server, user, channel, groups=None):
+    session_id = server._create_session(user)
+    session = server._resolve_session(session_id)
+    payload_dict = {
+        "channel": channel,
+        "data": {"display_type": "plaintext", "data": {"text": "test"}},
+        "encoding": "utf8",
+    }
+    if groups is not None:
+        payload_dict["groups"] = groups
+    payload = aes_encrypt(json.dumps(payload_dict), f"{user}-pass")
+    server.publish(session, payload)
+
+
+class TestGroupPermissions:
+    def test_get_user_groups_implicit(self, grouped_server):
+        groups = grouped_server._get_user_groups("alice")
+        assert groups == {"alice"}
+
+    def test_get_user_groups_explicit(self, grouped_server):
+        groups = grouped_server._get_user_groups("bob")
+        assert groups == {"bob", "ops"}
+
+    def test_get_user_groups_multiple(self, grouped_server):
+        groups = grouped_server._get_user_groups("carol")
+        assert groups == {"carol", "dev"}
+
+    def test_user_can_access_ungrouped_channel(self, grouped_server):
+        _publish_channel(grouped_server, "alice", "open-chan")
+        filtered = grouped_server._filter_channels(
+            "bob", ["open-chan"]
+        )
+        assert filtered == ["open-chan"]
+
+    def test_user_can_access_matching_group(self, grouped_server):
+        _publish_channel(grouped_server, "alice", "ops-chan", groups=["ops"])
+        filtered = grouped_server._filter_channels(
+            "bob", ["ops-chan"]
+        )
+        assert filtered == ["ops-chan"]
+
+    def test_user_cannot_access_other_group(self, grouped_server):
+        _publish_channel(grouped_server, "alice", "dev-chan", groups=["dev"])
+        filtered = grouped_server._filter_channels(
+            "bob", ["dev-chan"]
+        )
+        assert filtered == []
+
+    def test_admin_bypasses_groups(self, grouped_server):
+        _publish_channel(grouped_server, "alice", "restricted", groups=["dev"])
+        filtered = grouped_server._filter_channels(
+            "alice", ["restricted"]
+        )
+        assert filtered == ["restricted"]
+
+    def test_implicit_personal_group(self, grouped_server):
+        _publish_channel(grouped_server, "alice", "bob-chan", groups=["bob"])
+        filtered = grouped_server._filter_channels(
+            "bob", ["bob-chan"]
+        )
+        assert filtered == ["bob-chan"]
+        filtered = grouped_server._filter_channels(
+            "carol", ["bob-chan"]
+        )
+        assert filtered == []
+
+    def test_subscribe_permission_denied(self, grouped_server):
+        _publish_channel(
+            grouped_server, "alice", "secret-chan", groups=["ops"]
+        )
+        with pytest.raises(MntrServerException, match="Permission denied"):
+            grouped_server._check_subscribe_permissions(
+                "carol", ["secret-chan"]
+            )
+
+    def test_subscribe_permission_granted(self, grouped_server):
+        _publish_channel(
+            grouped_server, "alice", "ops-chan2", groups=["ops"]
+        )
+        grouped_server._check_subscribe_permissions("bob", ["ops-chan2"])
+
+    def test_publish_with_groups_stored(self, grouped_server):
+        _publish_channel(
+            grouped_server, "alice", "tagged-chan", groups=["ops", "dev"]
+        )
+        cd = grouped_server._state._get_channel_data("tagged-chan")
+        assert cd is not None
+        assert cd.groups == ["ops", "dev"]
+
+    def test_publish_without_groups_backward_compat(self, grouped_server):
+        _publish_channel(grouped_server, "alice", "compat-chan")
+        cd = grouped_server._state._get_channel_data("compat-chan")
+        assert cd is not None
+        assert cd.groups is None

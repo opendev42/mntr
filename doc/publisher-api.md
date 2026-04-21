@@ -45,6 +45,30 @@ re-authenticates if the session expires. You can also authenticate explicitly:
 client.authenticate()
 ```
 
+### Channel groups
+
+Channels can be restricted to specific groups. Only users who belong to at
+least one of the specified groups (or admin users) can see and subscribe to
+the channel. If no groups are specified, the channel is visible to all users.
+
+```python
+# Visible only to users in the "ops" or "dev" groups
+client.publish("my-channel", data, groups=["ops", "dev"])
+
+# Visible only to user "bob" (every user has an implicit personal group)
+client.publish("private-channel", data, groups=["bob"])
+
+# Visible to all users (default)
+client.publish("public-channel", data)
+```
+
+Groups are configured in the server's passphrases file (see the main README)
+and can be managed by admins through the web dashboard.
+
+```python
+client.authenticate()
+```
+
 ### Channel and publisher names
 
 Names must match `^[A-Za-z0-9_\-]{1,64}$` (alphanumeric, hyphens, underscores,
@@ -471,6 +495,8 @@ python -m mntr.publisher.pipe [OPTIONS]
 | `-p` / `--passphrase` | yes | | Path to file containing passphrase |
 | `--server` | yes | | Server URL |
 | `-t` / `--type` | no | `plaintext` | Content type (see below) |
+| `--groups` | no | | Space-separated list of groups that can access this channel |
+| `--ttl` | no | | Time-to-live in seconds |
 
 **Supported types:**
 
@@ -551,6 +577,7 @@ channel-name:
   class: mypackage.module.ClassName
   params:
     interval: 5
+    groups: [ops, dev]     # restrict to these groups (optional)
     custom_param: value
 
 another-channel:
@@ -560,6 +587,8 @@ another-channel:
 ```
 
 Each entry maps a channel name to a publisher class and its parameters.
+The `groups` and `ttl` keys in `params` are handled by the runner and do not
+need to be read by the publisher class itself.
 
 ### Writing a publisher
 
@@ -694,9 +723,14 @@ The inner payload (before encryption) for the `/publish` endpoint:
     "data": { ... },
     "alert": null | {"severity": "error|warning|info|success", "title": "...", "message": "..."}
   },
-  "encoding": "utf8"
+  "encoding": "utf8",
+  "groups": ["ops", "dev"],
+  "ttl": 60.0
 }
 ```
+
+The `groups` and `ttl` fields are optional. If `groups` is omitted or `null`,
+the channel is visible to all users.
 
 ---
 

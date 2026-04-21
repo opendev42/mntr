@@ -27,7 +27,7 @@ def main():
     else:
         raise ValueError(f"Unknown type: {args.type}")
 
-    client.publish(args.channel, data, ttl=args.ttl)
+    client.publish(args.channel, data, ttl=args.ttl, groups=args.groups)
 
 
 def parse_args():
@@ -67,6 +67,14 @@ def parse_args():
         type=float,
         default=None,
         help="Time-to-live in seconds. Channel data expires after this duration.",
+    )
+    parser.add_argument(
+        "--groups",
+        type=str,
+        nargs="*",
+        default=None,
+        help="Groups that can access this channel (space-separated). "
+        "If not specified, channel is visible to all users.",
     )
     return parser.parse_args()
 

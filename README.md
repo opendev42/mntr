@@ -66,7 +66,31 @@ client0: "client0"
 client1: "client1"
 ```
 
-Admin users can manage other users (add, remove, change passphrases) through the web dashboard.
+Admin users can manage other users (add, remove, change passphrases) and user groups through the web dashboard.
+
+### Groups
+
+Groups control which channels each user can see and subscribe to — similar to Unix groups. Add a `_groups` key to the passphrases file:
+
+```yaml
+_admins:
+  - client0
+_groups:
+  ops:
+    - client0
+    - client1
+  dev:
+    - client1
+client0: "client0"
+client1: "client1"
+client2: "client2"
+```
+
+Every user implicitly belongs to a group matching their username (e.g. user `client1` is always in group `client1`). When a publisher tags a channel with groups, only users who belong to at least one of those groups can see the channel.
+
+- **No groups on a channel** = visible to all users (backward compatible).
+- **Admin users** can see all channels regardless of group restrictions.
+- Group memberships can also be managed through the web dashboard's "Manage Users" section.
 
 ## Publishers
 
@@ -89,6 +113,9 @@ client = PublisherClient(
 
 data = PlaintextData.build(text="hello world")
 client.publish("my-channel", data)
+
+# Restrict channel to specific groups
+client.publish("my-channel", data, groups=["ops", "dev"])
 ```
 
 ### Pipe publisher
@@ -102,6 +129,16 @@ echo "hello world" | PYTHONPATH=. venv/bin/python -m mntr.publisher.pipe \
     --passphrase demo/passphrases/client0.txt \
     --type plaintext \
     --server http://localhost:5100
+```
+
+Use `--groups` to restrict the channel to specific groups:
+
+```bash
+echo "ops only" | PYTHONPATH=. venv/bin/python -m mntr.publisher.pipe \
+    --channel ops-log --name client0 \
+    --passphrase demo/passphrases/client0.txt \
+    --type plaintext --server http://localhost:5100 \
+    --groups ops dev
 ```
 
 Supported `-t` / `--type` values:
@@ -133,6 +170,7 @@ my-channel:
   class: mypackage.mymodule.MyPublisher   # must subclass IntervalPublisher
   params:
     interval: 5        # seconds between publishes (optional, default 5)
+    groups: [ops, dev] # restrict channel to these groups (optional)
     my_param: value
 ```
 

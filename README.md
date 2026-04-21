@@ -125,6 +125,9 @@ client.publish("my-channel", data)
 
 # Restrict channel to specific groups
 client.publish("my-channel", data, groups=["ops", "dev"])
+
+# Set a TTL — channel data expires and is removed after N seconds
+client.publish("my-channel", data, ttl=60)
 ```
 
 ### Pipe publisher
@@ -140,14 +143,15 @@ echo "hello world" | PYTHONPATH=. venv/bin/python -m mntr.publisher.pipe \
     --server http://localhost:5100
 ```
 
-Use `--groups` to restrict the channel to specific groups:
+Use `--groups` to restrict the channel to specific groups, or `--ttl` to have the channel data expire after a number of seconds:
 
 ```bash
 echo "ops only" | PYTHONPATH=. venv/bin/python -m mntr.publisher.pipe \
     --channel ops-log --name client0 \
     --passphrase demo/passphrases/client0.txt \
     --type plaintext --server http://localhost:5100 \
-    --groups ops dev
+    --groups ops dev \
+    --ttl 60
 ```
 
 Supported `-t` / `--type` values:
@@ -180,6 +184,7 @@ my-channel:
   params:
     interval: 5        # seconds between publishes (optional, default 5)
     groups: [ops, dev] # restrict channel to these groups (optional)
+    ttl: 60            # channel data expires after N seconds (optional)
     my_param: value
 ```
 
